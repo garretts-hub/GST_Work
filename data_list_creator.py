@@ -9,7 +9,6 @@ import sys
 #sys.path.append("../../transmon-sim/physical_sim")
 sys.path.append("C:/Users/GA28573/AppData/Local/Continuum/anaconda32/Lib/site-packages/qutip-4.3.1-py3.6-win-amd64.egg/qutip")
 
-
 import NoiseSignal2 as _ns
 import qutip as _qt
 import numpy as np
@@ -109,18 +108,20 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
     timestep = num_counts*time_per_count #the time to get a full bitstring of zeros and ones for one sample, i.e. one timestamp
     timestamps = np.arange(timestep, num_samples*timestep, timestep) #array of 1*timestep, 2*timestep,....(num_samples)*timestep
     probs = []
-    angles = []
     total_time = (time_per_count*num_counts*num_samples)/time_unit
     
     sig = 0
     if noise_type == "Sine":
         #this function returns the noise object so you can enter it back in as a parameter
-        # in the event that you call the function repeatedly for a similar set of parameters
+        # in the event that you call the function repeatedly for an identical set of parameters
         if noise_object != None:
             sig = noise_object
+            #print("REUSING NOISE OBJECT")
             while total_time > sig.times[-1] + timestep:
                 sig.next_interval()
+                #print("Doing a NEXT INTERVAL")
         else:
+            #print("INITIALIZING NEW NOISE")
             sig = _ns.NoiseSignalSine(time_unit=time_unit)
             sig.configure_noise(resolution_factor=res, freq_list=freq_list, amp_list=amp_list, phase_list=phase_list, total_time=total_time)
             sig.init()
@@ -159,15 +160,12 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
             '''
             if gate_name == 'Gx':
                 angle = np.pi/2 + noise_at_time
-                angles.append(angle)
                 rho = (_qt.to_super(_qt.rx(angle)))**gate_repetitions * rho
             elif gate_name == 'Gy':
                 angle = np.pi/2 + noise_at_time
-                angles.append(angle)
                 rho = (_qt.to_super(_qt.ry(angle)))**gate_repetitions * rho
             elif gate_name == 'Gz':
                 angle = np.pi/2 + noise_at_time
-                angles.append(angle)
                 rho = (_qt.to_super(_qt.rz(angle)))**gate_repetitions * rho
         #calculate probabilities of being in 1 after the experiment has been applied
         p1 = (rho.dag()*rho1).norm()
