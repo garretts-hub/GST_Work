@@ -108,6 +108,7 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
     timestep = num_counts*time_per_count #the time to get a full bitstring of zeros and ones for one sample, i.e. one timestamp
     timestamps = np.arange(timestep, num_samples*timestep, timestep) #array of 1*timestep, 2*timestep,....(num_samples)*timestep
     probs = []
+    angle_per_timestep = []
     total_time = (time_per_count*num_counts*num_samples)/time_unit
     
     sig = 0
@@ -160,6 +161,7 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
             '''
             if gate_name == 'Gx':
                 angle = np.pi/2 + noise_at_time
+                angle_per_timestep.append(angle**gate_repetitions)
                 rho = (_qt.to_super(_qt.rx(angle)))**gate_repetitions * rho
             elif gate_name == 'Gy':
                 angle = np.pi/2 + noise_at_time
@@ -184,7 +186,7 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
         plt.grid()
         plt.show()
         
-    return (np.asarray(one_counts), np.asarray(zero_counts), np.asarray(timestamps), probs, sig)
+    return (np.asarray(one_counts), np.asarray(zero_counts), np.asarray(timestamps), probs, angle_per_timestep, sig)
 
 
 
