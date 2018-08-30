@@ -94,10 +94,8 @@ def experiment_per_line(file_loc, timestep):
     
     return datasets #returns a list of tuples, with each tuple containing the ones array, zeros array, and timestamps for an experiment
 
-def experiment_per_multiple_lines(file_loc, timestep, rows_per_experiment):
-    '''
-    need documentation here
-    '''
+'''def experiment_per_multiple_lines(file_loc, timestep, rows_per_experiment):
+    #need documentation here
     #find how many rows are in the file
     with open(file_loc, 'r') as file:
         for i, l in enumerate(file):
@@ -109,7 +107,7 @@ def experiment_per_multiple_lines(file_loc, timestep, rows_per_experiment):
     
     datasets = [] #each element is a tuple containing three lists: ones counts, zeros counts, and timesteps
     with open(file_loc, 'r') as file:
-        for exper in range(total_experiments):
+        for exper in range(total_experiments):'''
             
           
     
