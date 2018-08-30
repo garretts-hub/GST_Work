@@ -193,8 +193,8 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
             '''
             
             if gate_name == 'Gx':
-                angle = (np.pi/2 + noise_at_time  + dc_angle_offset)*gate_repetitions
-                ideal_angle = (np.pi/2  + dc_angle_offset)*gate_repetitions
+                angle = (np.pi/2 + noise_at_time)*gate_repetitions + dc_angle_offset
+                ideal_angle = (np.pi/2)*gate_repetitions + dc_angle_offset
                 rho = (_qt.to_super(_qt.rx(angle))) * rho
                 angle = angle % (2*np.pi)
                 ideal_angle = ideal_angle % (2*np.pi)
