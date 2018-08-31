@@ -121,17 +121,38 @@ def find_max_power(frequencies, powers, low_bound, hi_bound):
     
     max_power = max(powers[low_index:high_index])
     return max_power
+
+def find_band_power(frequencies, powers, low_bound, high_bound):
+    #sums the powers within a band of frequencies
+    #returns the sum of those powers, and the range of frequencies that it spans
+    power = 0
+    low_freq = 0
+    high_freq = 0
+    for fi in range(len(frequencies)):
+        freq = frequencies[fi]
+        if freq > low_bound and freq < high_bound:
+            power += powers[fi]
+            if low_freq == 0:
+                #print("Setting low freq at {}".format(freq))
+                low_freq = freq
+        elif freq > high_bound:
+            high_freq = frequencies[fi - 1]
+            #print("Setting high freq at {}".format(frequencies[fi - 1]))
+            break
+    freq_range = high_freq - low_freq
+    return (power, freq_range)
     
 
 def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, noise_type=None, walking_amp=None, telegraph_amp=None, \
                 res=None, freq_list=None, amp_list=None, phase_list=None, start_f=None, stop_f=None, fluctuators=None, plot_noise=False, \
-                add_noise=False, noise_object=None, dc_angle_offset=0):
+                add_noise=False, noise_object=None, dc_angle_offset=0, constant_linear_drift=0):
     #time_per_shot: time in seconds for a single (prep-gate-measure+delay)
     #num_samples: how many timestamps and strings of counts you want to have
     #num_counts: how many data points to create (how many ones and zeros) per sample (i.e. per timestamp) --> affects both time of a sample and precision
     #num_shots: how many times (shots) you apply (prep-gate_list-meas) to get one count (a single 0 or 1) --> determines the time of one count, but won't affect precision
     #gate_list: gates you want to do for your operation, entered as a list of strings
     #xerr,yerr,zerr: 2D tuples with overrotation amplitude in radians and frequency in Hz
+    #constant linear drift: enter in rads/second
     rho0 = _qt.operator_to_vector(_qt.ket2dm(_qt.basis(2,0)))
     rho1 = _qt.operator_to_vector(_qt.ket2dm(_qt.basis(2,1)))
     zero_counts = []
@@ -193,8 +214,8 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
             '''
             
             if gate_name == 'Gx':
-                angle = (np.pi/2 + noise_at_time)*gate_repetitions + dc_angle_offset
-                ideal_angle = (np.pi/2)*gate_repetitions + dc_angle_offset
+                angle = (np.pi/2 + noise_at_time)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
+                ideal_angle = (np.pi/2)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
                 rho = (_qt.to_super(_qt.rx(angle))) * rho
                 angle = angle % (2*np.pi)
                 ideal_angle = ideal_angle % (2*np.pi)
@@ -287,7 +308,7 @@ if __name__=='__main__':
     #print("Input list of length {}".format(len(gate_list)))
     #print("Compressed form: {}".format(compress_gate_list(gate_list)))
     #print("Converted back to string: {}".format(gate_list_to_string(gate_list)))
-    nSamples = 2000  #total samples to take for each measurement
+    nSamples = 500  #total samples to take for each measurement
     nCounts = 1      #total shots to take at one; =nSamples: same noise, probabilities for all repeats; =1, new experiment & noise for each count
     time_per_count = 1/60 #seconds
     time_units = 1e-3 #seconds
@@ -301,10 +322,11 @@ if __name__=='__main__':
     low_frequency_noise = [] #uncomment this to eliminate low_frequency noise
     low_frequency_amps = [0.005*i for i in range(len(low_frequency_noise))]
     low_frequency_phase = [0]*len(low_frequency_noise)
-    freq_list=[2]#1.2, 6, 8.4, 9.6] + low_frequency_noise
-    amp_list=[0.009]#.002, 0.002, 0.0015, 0.0015] + low_frequency_amps
+    freq_list=[5]#1.2, 6, 8.4, 9.6] + low_frequency_noise
+    amp_list=[0.008]#.002, 0.002, 0.0015, 0.0015] + low_frequency_amps
     phase_list=[0]#,0,0,0] + low_frequency_phase
-    dc_angle_offset = np.pi/5
+    dc_angle_offset = 0
+    constant_linear_drift = 0
     add_noise=False#0.005
     start_f = 0.1
     stop_f = 2
@@ -315,9 +337,15 @@ if __name__=='__main__':
     phase_list= tuple(phase_list)
     #create_1f_data(time_per_count, nSamples, nCounts, gate_list, amp, fluctuators, start_f, stop_f, time_units)
     ones, zeros, times, probs, expected_angles, angles, sig = create_data(time_per_count, nSamples, nCounts, gate_list, time_units, noise_type, walking_amp, telegraph_amp, \
-                res, freq_list, amp_list, phase_list, start_f, stop_f, fluctuators,plot_noise,add_noise,noise_object=None,dc_angle_offset=dc_angle_offset)
+                res, freq_list, amp_list, phase_list, start_f, stop_f, fluctuators,plot_noise,add_noise,noise_object=None,dc_angle_offset=dc_angle_offset, constant_linear_drift=constant_linear_drift)
     
-
+    
+    print("times have {} points".format(len(times)))
+    print("ones list has {} points".format(len(ones)))
+    print("there were {} input points".format(nSamples))
+    print("Max probability is {}".format(max(probs)))
+    print("Min probability is {}".format(min(probs)))
+    print("Amplitude of probability oscillation is {}".format(max(probs) - min(probs) ))
     
     #print(find_max_power([2,3,4,5,6,7,8,9], [1000, 298, 43, 2, 95, 698, 65, 3], 4, 8))
     
