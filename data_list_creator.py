@@ -302,13 +302,13 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
 
 if __name__=='__main__':
 
-    gate_string = "(Gx)^49"                                
+    gate_string = "(Gx)^79"                                
     #print("Start with string {}".format(gate_string))
     gate_list = gate_string_to_list(gate_string)
     #print("Input list of length {}".format(len(gate_list)))
     #print("Compressed form: {}".format(compress_gate_list(gate_list)))
     #print("Converted back to string: {}".format(gate_list_to_string(gate_list)))
-    nSamples = 500  #total samples to take for each measurement
+    nSamples = 2000  #total samples to take for each measurement
     nCounts = 1      #total shots to take at one; =nSamples: same noise, probabilities for all repeats; =1, new experiment & noise for each count
     time_per_count = 1/60 #seconds
     time_units = 1e-3 #seconds
@@ -322,8 +322,8 @@ if __name__=='__main__':
     low_frequency_noise = [] #uncomment this to eliminate low_frequency noise
     low_frequency_amps = [0.005*i for i in range(len(low_frequency_noise))]
     low_frequency_phase = [0]*len(low_frequency_noise)
-    freq_list=[5]#1.2, 6, 8.4, 9.6] + low_frequency_noise
-    amp_list=[0.008]#.002, 0.002, 0.0015, 0.0015] + low_frequency_amps
+    freq_list=[0.5]#1.2, 6, 8.4, 9.6] + low_frequency_noise
+    amp_list=[0.00]#.002, 0.002, 0.0015, 0.0015] + low_frequency_amps
     phase_list=[0]#,0,0,0] + low_frequency_phase
     dc_angle_offset = 0
     constant_linear_drift = 0
@@ -340,12 +340,18 @@ if __name__=='__main__':
                 res, freq_list, amp_list, phase_list, start_f, stop_f, fluctuators,plot_noise,add_noise,noise_object=None,dc_angle_offset=dc_angle_offset, constant_linear_drift=constant_linear_drift)
     
     
-    print("times have {} points".format(len(times)))
-    print("ones list has {} points".format(len(ones)))
-    print("there were {} input points".format(nSamples))
+    #print("times have {} points".format(len(times)))
+    #print("ones list has {} points".format(len(ones)))
+    #print("there were {} input points".format(nSamples))
     print("Max probability is {}".format(max(probs)))
     print("Min probability is {}".format(min(probs)))
-    print("Amplitude of probability oscillation is {}".format(max(probs) - min(probs) ))
+    print("Peak-to-Trough Amplitude of probability oscillation is {}".format(max(probs) - min(probs) ))
+    
+    plt.figure(figsize=(10,4))
+    plt.plot(times, ones/nCounts,marker='.')
+    plt.ylim(0,1)
+    plt.title("1-state Probability Using Simulated Data\nDrift Freq {} Hz at {} rads".format(freq_list,amp_list))
+    plt.show()
     
     #print(find_max_power([2,3,4,5,6,7,8,9], [1000, 298, 43, 2, 95, 698, 65, 3], 4, 8))
     
