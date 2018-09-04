@@ -81,7 +81,36 @@ def compress_gate_list(gate_list):
                 compressed_list.append([gate_list[i], 1])
     return compressed_list
 
-def SNR(frequencies, powers, signal_frequencies, signal_bandwidth):
+def RMS(powers_list):
+    #calculates RMS average for a list of powers
+    # this function is used in other functions
+    N = len(powers_list)
+    squares_list = [val**2 for val in powers_list]
+    sum_of_squares  = sum(squares_list)
+    RMS = np.sqrt(sum_of_squares/N)
+    return RMS
+
+def SNR(frequencies, powers, central_freq, freq_band):
+    #frequencies and powers are lists.
+    # central freq is the frequency you're interested in, and
+    # freq_band is how many frequencies plus or minus the central freq
+    # that you're willing to consider. This is important for frequency
+    # step size in the fourier transform.
+    # Divides the total power within your frequency band by RMS mean.
+    signal_power = 0
+    lower_f = central_freq - freq_band
+    upper_f = central_freq + freq_band
+    for index in range(len(frequencies)):
+        f = frequencies[index]
+        if f > upper_f:
+            break
+        if f > lower_f:
+            signal_power += powers[index]
+    rms = RMS(powers)
+    return signal_power/rms
+                
+
+'''def SNR(frequencies, powers, signal_frequencies, signal_bandwidth):
     #frequencies & powers from the FT; assumes evenly-spaced frequencies
     #signal frequencies are the frequencies you're interested in
     #bandwidth is the amount of frequency plus/minus your signal frequencies that 
@@ -106,7 +135,7 @@ def SNR(frequencies, powers, signal_frequencies, signal_bandwidth):
                 signal_power += p
         signal_power_list.append(signal_power)
     SNR = sum(signal_power_list)/mean_power
-    return SNR
+    return SNR'''
 
 def find_max_power(frequencies, powers, low_bound, hi_bound):
     #Finds the highest power within band of frequencies
