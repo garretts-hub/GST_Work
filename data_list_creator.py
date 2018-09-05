@@ -8,169 +8,11 @@ Created on Fri Aug  3 14:07:03 2018
 import sys
 #sys.path.append("../../transmon-sim/physical_sim")
 sys.path.append("C:/Users/GA28573/AppData/Local/Continuum/anaconda32/Lib/site-packages/qutip-4.3.1-py3.6-win-amd64.egg/qutip")
-
 import NoiseSignal2 as _ns
 import qutip as _qt
 import numpy as np
 import pylab as plt
-
-
-
-def gate_string_to_list(gate_string):
-    #returns gate sequence as a list
-    #ex, 'GxGxGx' --> ['Gx', 'Gx', 'Gx', 'Gx']
-    #"Gx(Gy)^2Gz" --> ['Gx', 'Gy', 'Gy', 'Gz']
-    #do not raise anything to the 1 exponent, only 2 or more; always use parenthesis
-    #currently can only handle exponents up to 99
-    #do not put more than one gate in parentheses for right now
-    gate_list = []
-                
-    string_list = list(gate_string)
-    list_len = len(string_list)
-    for char_index in range(list_len):
-        char = string_list[char_index]
-        #print("Index {}: {}".format(char_index, char))
-        if char == ")":
-            num = ''
-            start_num = False
-            #do a loop to find the start and end of the exponent number
-            for sub_index in range(char_index, list_len):
-                sub_char = string_list[sub_index]
-                if sub_char.isnumeric():
-                    num = num + sub_char
-                    start_num = True
-                elif not(sub_char.isnumeric()) and start_num == True:
-                    break
-            #print("Found number " + num)
-            last_gate = gate_list[-1]
-            gate_list += [last_gate]*(int(num)-1)
-        if char == "G":
-            gate = char + string_list[char_index + 1]
-            gate_list.append(gate)
-    return gate_list
-
-def gate_list_to_string(gate_list):
-    gate_string = ''
-    total_gates = len(gate_list)
-    count = 1
-    for gate_index in range(total_gates):
-        gate = gate_list[gate_index]
-        #print("Gate {}: {}".format(gate_index, gate))
-        if gate_index != (total_gates-1) and gate_list[gate_index + 1] == gate:
-            count += 1
-        elif count > 1:
-            gate_string = gate_string + "(" + gate + ")^" + str(count)
-        else:
-            gate_string = gate_string + gate
-            count = 1
-    return gate_string
-
-def compress_gate_list(gate_list):
-    #this will compress the gate_list down to a list of 2-element lists, where the first element is the gate
-    # and the second element is the number of consecutive appearances. The for loop below runs faster
-    # when it can read the gates this way.
-    num_gates = len(gate_list)
-    compressed_list = []
-    for i in range(num_gates):
-        if i==0:
-            compressed_list.append([gate_list[i], 1])
-        else:
-            if gate_list[i]==gate_list[i-1]:
-                compressed_list[-1][1] += 1
-            else:
-                compressed_list.append([gate_list[i], 1])
-    return compressed_list
-
-def RMS(powers_list):
-    #calculates RMS average for a list of powers
-    # this function is used in other functions
-    N = len(powers_list)
-    squares_list = [val**2 for val in powers_list]
-    sum_of_squares  = sum(squares_list)
-    RMS = np.sqrt(sum_of_squares/N)
-    return RMS
-
-def SNR(frequencies, powers, central_freq, freq_band):
-    #frequencies and powers are lists.
-    # central freq is the frequency you're interested in, and
-    # freq_band is how many frequencies plus or minus the central freq
-    # that you're willing to consider. This is important for frequency
-    # step size in the fourier transform.
-    # Divides the total power within your frequency band by RMS mean.
-    signal_power = 0
-    lower_f = central_freq - freq_band
-    upper_f = central_freq + freq_band
-    for index in range(len(frequencies)):
-        f = frequencies[index]
-        if f > upper_f:
-            break
-        if f > lower_f:
-            signal_power += powers[index]
-    rms = RMS(powers)
-    return signal_power/rms
-                
-
-'''def SNR(frequencies, powers, signal_frequencies, signal_bandwidth):
-    #frequencies & powers from the FT; assumes evenly-spaced frequencies
-    #signal frequencies are the frequencies you're interested in
-    #bandwidth is the amount of frequency plus/minus your signal frequencies that 
-    #   you're willing to count as part of your signal power
-    frequencies = np.asarray(frequencies)
-    powers = np.asarray(powers)
-    mean_power = np.mean(powers)
-    signals = []
-    signal_power_list = [] #includes one element for the total power for each signal frequency of interest
-    for f in signal_frequencies:
-        lower_bound = f - signal_bandwidth
-        upper_bound = f + signal_bandwidth
-        signals.append((lower_bound, upper_bound))
-    for signal in signals:
-        signal_power = 0
-        for i in range(len(frequencies)):
-            f = frequencies[i]
-            p = powers[i]
-            if f >= signal[1]:
-                break
-            if f >= signal[0] and f <= signal[1]:
-                signal_power += p
-        signal_power_list.append(signal_power)
-    SNR = sum(signal_power_list)/mean_power
-    return SNR'''
-
-def find_max_power(frequencies, powers, low_bound, hi_bound):
-    #Finds the highest power within band of frequencies
-    low_index = 0
-    high_index = 0
-    for f_i in range(len(frequencies)):
-        freq = frequencies[f_i]
-        if freq > hi_bound:
-            high_index = f_i
-        if freq > low_bound and low_index == 0:
-            low_index = f_i
-    
-    max_power = max(powers[low_index:high_index])
-    return max_power
-
-def find_band_power(frequencies, powers, low_bound, high_bound):
-    #sums the powers within a band of frequencies
-    #returns the sum of those powers, and the range of frequencies that it spans
-    power = 0
-    low_freq = 0
-    high_freq = 0
-    for fi in range(len(frequencies)):
-        freq = frequencies[fi]
-        if freq > low_bound and freq < high_bound:
-            power += powers[fi]
-            if low_freq == 0:
-                #print("Setting low freq at {}".format(freq))
-                low_freq = freq
-        elif freq > high_bound:
-            high_freq = frequencies[fi - 1]
-            #print("Setting high freq at {}".format(frequencies[fi - 1]))
-            break
-    freq_range = high_freq - low_freq
-    return (power, freq_range)
-    
+from helpers import *
 
 def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, noise_type=None, walking_amp=None, telegraph_amp=None, \
                 res=None, freq_list=None, amp_list=None, phase_list=None, start_f=None, stop_f=None, fluctuators=None, plot_noise=False, \
@@ -231,6 +73,8 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
             #print(time/time_unit)
             noise_at_time = sig[time/time_unit]
         rho = rho0
+        total_angle = 0
+        total_ideal_angle = 0
         
         for gate in compressed_gate_list:
             gate_name = gate[0]
@@ -246,6 +90,7 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
                 angle = (np.pi/2 + noise_at_time)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
                 ideal_angle = (np.pi/2)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
                 rho = (_qt.to_super(_qt.rx(angle))) * rho
+                #this section just keeps the angle between 0 and pi
                 angle = angle % (2*np.pi)
                 ideal_angle = ideal_angle % (2*np.pi)
                 if angle > np.pi:
@@ -256,14 +101,13 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
                     ideal_angle = 2*np.pi - ideal_angle
                 if ideal_angle < 0:
                     ideal_angle = 0 + abs(ideal_angle)
-                angle_list.append(angle)
-                expected_angle_list.append(ideal_angle)
             elif gate_name == 'Gy':
-                angle = (np.pi/2 + noise_at_time + dc_angle_offset)*gate_repetitions
-                ideal_angle = (np.pi/2 + dc_angle_offset)*gate_repetitions
+                angle = (np.pi/2 + noise_at_time)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
+                ideal_angle = (np.pi/2)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
                 rho = (_qt.to_super(_qt.rx(angle))) * rho
+                #this section just keeps the angle between 0 and pi
                 angle = angle % (2*np.pi)
-                ideal_angle = ideal_angle % np.pi
+                ideal_angle = ideal_angle % (2*np.pi)
                 if angle > np.pi:
                     angle = 2*np.pi - angle
                 if angle < 0:
@@ -272,14 +116,13 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
                     ideal_angle = 2*np.pi - ideal_angle
                 if ideal_angle < 0:
                     ideal_angle = 0 + abs(ideal_angle)
-                angle_list.append(angle)
-                expected_angle_list.append(ideal_angle)
             elif gate_name == 'Gz':
-                angle = (np.pi/2 + noise_at_time + dc_angle_offset)*gate_repetitions
-                ideal_angle = (np.pi/2 + dc_angle_offset)*gate_repetitions
+                angle = (np.pi/2 + noise_at_time)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
+                ideal_angle = (np.pi/2)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
                 rho = (_qt.to_super(_qt.rx(angle))) * rho
+                #this section just keeps the angle between 0 and pi
                 angle = angle % (2*np.pi)
-                ideal_angle = ideal_angle % np.pi
+                ideal_angle = ideal_angle % (2*np.pi)
                 if angle > np.pi:
                     angle = 2*np.pi - angle
                 if angle < 0:
@@ -288,16 +131,36 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
                     ideal_angle = 2*np.pi - ideal_angle
                 if ideal_angle < 0:
                     ideal_angle = 0 + abs(ideal_angle)
-                angle_list.append(angle)
-                expected_angle_list.append(ideal_angle)
+            elif gate_name == "Gi":
+                #apply only the oscillating drift angle, don't add it to pi/2
+                angle = (noise_at_time)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
+                ideal_angle = 0 + dc_angle_offset + constant_linear_drift*time
+                rho = (_qt.to_super(_qt.rx(angle))) * rho
+                angle = angle % (2*np.pi)
+                ideal_angle = ideal_angle % (2*np.pi)
+                if angle > np.pi:
+                    angle = 2*np.pi - angle
+                if angle < 0:
+                    angle = 0 + abs(angle)
+                if ideal_angle > np.pi:
+                    ideal_angle = 2*np.pi - ideal_angle
+                if ideal_angle < 0:
+                    ideal_angle = 0 + abs(ideal_angle)
+            total_angle += angle
+            total_ideal_angle += ideal_angle
+        
+        #append the total rotation angle after timestamp 'time'
+        angle_list.append(total_angle)
+        expected_angle_list.append(total_ideal_angle)        
         #calculate probabilities of being in 1 after the experiment has been applied
         p1 = (rho.dag()*rho1).norm()
-        probs.append(p1)
+        #fix the p1 if it exceeds 1 due to rounding error
         if p1 > 1:
             #print("p1 exceeds 1 for time {}".format(time))
             #print("prob is {}".format(p1))
             #print("Resetting to {}".format(2-p1))
             p1 = 2 - p1
+        probs.append(p1)
         one_count = np.random.binomial(num_counts, p1) #simulates a summation of the number of 1-counts you get in one bitstring sample
         zero_count = num_counts - one_count #simulates summation of the number of 0-counts in one bitstring sample
         one_counts.append(one_count)
@@ -305,8 +168,6 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
             
     
     if plot_noise == True:
-       
-        
         plt.plot(timestamps, np.asarray(expected_angle_list),label="Ideal Angle",ls='dashed',color='orange')
         plt.plot(timestamps, np.asarray(angle_list), label="Drifting Angle")
         plt.legend()
@@ -327,17 +188,20 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
         
     return (np.asarray(one_counts), np.asarray(zero_counts), np.asarray(timestamps), probs,np.asarray(expected_angle_list), np.asarray(angle_list),  sig)
 
+def ramsey_experiment(left_gates, right_gates, L, detuning, nSamples, nCounts, time_per_gate, switching_time, time_units, noise_type, freq_list,\
+                      amp_list, phase_list, start_f=0, stop_f=0, fluctuators=0,plot_noise=False,add_noise=False,noise_object=None):
+
 
 
 if __name__=='__main__':
 
-    gate_string = "(Gx)^79"                                
+    gate_string = "GxGxGxGx"                                
     #print("Start with string {}".format(gate_string))
-    gate_list = gate_string_to_list(gate_string)
+    #gate_list = gate_string_to_list(gate_string)
     #print("Input list of length {}".format(len(gate_list)))
     #print("Compressed form: {}".format(compress_gate_list(gate_list)))
     #print("Converted back to string: {}".format(gate_list_to_string(gate_list)))
-    nSamples = 2000  #total samples to take for each measurement
+    nSamples = 4  #total samples to take for each measurement
     nCounts = 1      #total shots to take at one; =nSamples: same noise, probabilities for all repeats; =1, new experiment & noise for each count
     time_per_count = 1/60 #seconds
     time_units = 1e-3 #seconds
@@ -379,8 +243,6 @@ if __name__=='__main__':
     plt.figure(figsize=(10,4))
     plt.plot(times, ones/nCounts,marker='.')
     plt.ylim(0,1)
-    plt.title("1-state Probability Using Simulated Data\nDrift Freq {} Hz at {} rads".format(freq_list,amp_list))
+    plt.title("1-state Probability Using Simulated Data\nDrift Freq {} Hz at {} rads, averaging {}-counts per point".format(freq_list,amp_list,nCounts))
+    plt.ylabel("Probability\n(Total 1-counts/total counts per sample)")
     plt.show()
-    
-    #print(find_max_power([2,3,4,5,6,7,8,9], [1000, 298, 43, 2, 95, 698, 65, 3], 4, 8))
-    
