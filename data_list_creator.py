@@ -188,10 +188,33 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
         
     return (np.asarray(one_counts), np.asarray(zero_counts), np.asarray(timestamps), probs,np.asarray(expected_angle_list), np.asarray(angle_list),  sig)
 
-def ramsey_experiment(left_gates, right_gates, L, detuning, nSamples, nCounts, time_per_gate, switching_time, time_units, noise_type, freq_list,\
-                      amp_list, phase_list, start_f=0, stop_f=0, fluctuators=0,plot_noise=False,add_noise=False,noise_object=None):
+def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f, nCounts, time_per_gate, switching_time, time_units=1e-3, noise_type=None, freq_list=0,\
+                      amp_list=0, phase_list=0, start_f=0, stop_f=0, fluctuators=0,plot_noise=False,add_noise=False,noise_object=None):
+    #left and right gate_lists: lists of the gates sandwiching the Gi gates
+    #L: the number of Gi gates. If you want to vary this, make it a list
+    #field_f: frequency of external field in Hz. To vary this, make it a list. Either L or field_f must vary.
+    #transition_f: frequency of the qubit transition in Hz.
+    #time_per_gate: total time to complete one Gx, Gy, Gi, or Gz
+    #switching_time: additional time before you start any new gate or change gates
+    #nCounts: number of times to repeat one experiment (a single set of parameters)
+    #time_units: baseline units (in seconds) for any additional drift noise signal you may want to add. Defaults to ms.
+    
+    #check that the input has something to be varied
+    if type(L) == type(field_f):
+        print("Error: Either L or field_f must vary over a range!")
+        return None
 
-
+    if type(L) == list:
+        total_experiments = len(L)
+        experiment_list = []
+        for l in L:
+            experiment_list.append(left_gate_list + ['Gi']*L + right_gate_list)
+        delta_list = [field_f - transition_f]*total_experiments
+    else:
+        total_experiments = len(field_f)
+        experiment_list = [left_gate_list + ['Gi']*L + right_gate_list]*total_experiments
+        delta_list = [freq - transition_f for freq in field_f]
+    absolute_time = 0 #seconds.
 
 if __name__=='__main__':
 
