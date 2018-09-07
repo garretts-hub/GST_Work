@@ -189,8 +189,8 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
     return (np.asarray(one_counts), np.asarray(zero_counts), np.asarray(timestamps), probs,np.asarray(expected_angle_list), np.asarray(angle_list),  sig)
 
 def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f, nCounts, time_per_gate, gate_switching_time, \
-                      experiment_sample_time, time_units=1e-3, noise_type=None, freq_list=0,amp_list=0, phase_list=0,\
-                      start_f=0, stop_f=0, fluctuators=0,plot_noise=False,add_noise=False,noise_object=None):
+                      experiment_sample_time, time_units=1e-6, noise_type=None, freq_list=0,amp_list=0, phase_list=0,\
+                      start_f=0, stop_f=0, fluctuators=0,plot_noise=False,add_noise=False):
     #left and right gate_lists: lists of the gates sandwiching the Gi gates
     #L: the number of Gi gates. If you want to vary this, make it a list
     #field_f: frequency of external field in Hz. To vary this, make it a list. Either L or field_f must vary.
@@ -215,11 +215,19 @@ def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f,
             experiment_list.append(left_gate_list + ['Gi']*l + right_gate_list)
         delta_list = [field_f - transition_f]*total_experiments
         varied_param = [(time_per_gate*l + gate_switching_time) for l in L]
+        
     else:
         total_experiments = len(field_f)
         experiment_list = [left_gate_list + ['Gi']*L + right_gate_list]*total_experiments
         delta_list = [freq - transition_f for freq in field_f]
         varied_param = delta_list
+        
+    #create a noise object:
+    if noise_type != None and noise_type == "Sine":
+        total_time = total_experiments*nCounts*experiment_sample_time #assumes that every count is taken every 0.016 seconds, and that no experiment takes longer than that
+        sig = _ns.NoiseSignalSine(time_unit=time_units)
+        sig.configure_noise(resolution_factor=1, freq_list=freq_list, amp_list=amp_list, phase_list=phase_list, total_time=total_time)
+        sig.init()
         
     probs = [] #total_experiments-length list of lists, where each internal list has an nCount list of probabilities
     time_per_experiment_set = [] #a list of lists, has the absolute time after every count is read off
@@ -239,7 +247,17 @@ def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f,
         total_angle = 0
         total_ideal_angle = 0
         for gate_name, repetitions in compressed_experiment:
-            noise_at_time = 0 #To-do: add a noise object, make this variale a function of absolute_time and noise obj
+            if noise_type != None:
+                noise_at_time = sig[time/time_units]
+            else:
+                noise_at_time = 0 #To-do: add a noise object, make this variale a function of absolute_time and noise obj
+            '''
+            Need to do 2 things with the noise object:
+                1. find how much a change in B will change the resonant frequency
+                2. use this change in resonant frequency to determine relative phase accumulation.
+                It should act on phi and theta rotations differently, not always just treated as a
+                theta overrotation.
+            '''
             if gate_name == 'Gx':
                 angle = (np.pi/2 + noise_at_time)*repetitions
                 ideal_angle = (np.pi/2)*repetitions
