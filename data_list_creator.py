@@ -104,7 +104,7 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
             elif gate_name == 'Gy':
                 angle = (np.pi/2 + noise_at_time)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
                 ideal_angle = (np.pi/2)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
-                rho = (_qt.to_super(_qt.rx(angle))) * rho
+                rho = (_qt.to_super(_qt.ry(angle))) * rho
                 #this section just keeps the angle between 0 and pi
                 angle = angle % (2*np.pi)
                 ideal_angle = ideal_angle % (2*np.pi)
@@ -119,7 +119,7 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
             elif gate_name == 'Gz':
                 angle = (np.pi/2 + noise_at_time)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
                 ideal_angle = (np.pi/2)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
-                rho = (_qt.to_super(_qt.rx(angle))) * rho
+                rho = (_qt.to_super(_qt.rz(angle))) * rho
                 #this section just keeps the angle between 0 and pi
                 angle = angle % (2*np.pi)
                 ideal_angle = ideal_angle % (2*np.pi)
@@ -135,7 +135,7 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
                 #apply only the oscillating drift angle, don't add it to pi/2
                 angle = (noise_at_time)*gate_repetitions + dc_angle_offset + constant_linear_drift*time
                 ideal_angle = 0 + dc_angle_offset + constant_linear_drift*time
-                rho = (_qt.to_super(_qt.rx(angle))) * rho
+                rho = (_qt.to_super(_qt.rz(angle))) * rho
                 angle = angle % (2*np.pi)
                 ideal_angle = ideal_angle % (2*np.pi)
                 if angle > np.pi:
@@ -188,14 +188,16 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
         
     return (np.asarray(one_counts), np.asarray(zero_counts), np.asarray(timestamps), probs,np.asarray(expected_angle_list), np.asarray(angle_list),  sig)
 
-def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f, nCounts, time_per_gate, switching_time, time_units=1e-3, noise_type=None, freq_list=0,\
-                      amp_list=0, phase_list=0, start_f=0, stop_f=0, fluctuators=0,plot_noise=False,add_noise=False,noise_object=None):
+def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f, nCounts, time_per_gate, gate_switching_time, \
+                      experiment_sample_time, time_units=1e-3, noise_type=None, freq_list=0,amp_list=0, phase_list=0,\
+                      start_f=0, stop_f=0, fluctuators=0,plot_noise=False,add_noise=False,noise_object=None):
     #left and right gate_lists: lists of the gates sandwiching the Gi gates
     #L: the number of Gi gates. If you want to vary this, make it a list
     #field_f: frequency of external field in Hz. To vary this, make it a list. Either L or field_f must vary.
     #transition_f: frequency of the qubit transition in Hz.
     #time_per_gate: total time to complete one Gx, Gy, Gi, or Gz
     #switching_time: additional time before you start any new gate or change gates
+    #experiment_sample_time: time at which you trigger a single expeimrent (single count), usually 60 Hz triggered
     #nCounts: number of times to repeat one experiment (a single set of parameters)
     #time_units: baseline units (in seconds) for any additional drift noise signal you may want to add. Defaults to ms.
     
@@ -203,18 +205,99 @@ def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f,
     if type(L) == type(field_f):
         print("Error: Either L or field_f must vary over a range!")
         return None
+    #this list will contain the varied parameter, either detuning in Hz or delay time in s
+    varied_param = []
 
     if type(L) == list:
         total_experiments = len(L)
         experiment_list = []
         for l in L:
-            experiment_list.append(left_gate_list + ['Gi']*L + right_gate_list)
+            experiment_list.append(left_gate_list + ['Gi']*l + right_gate_list)
         delta_list = [field_f - transition_f]*total_experiments
+        varied_param = [(time_per_gate*l + gate_switching_time) for l in L]
     else:
         total_experiments = len(field_f)
         experiment_list = [left_gate_list + ['Gi']*L + right_gate_list]*total_experiments
         delta_list = [freq - transition_f for freq in field_f]
-    absolute_time = 0 #seconds.
+        varied_param = delta_list
+        
+    probs = [] #total_experiments-length list of lists, where each internal list has an nCount list of probabilities
+    time_per_experiment_set = [] #a list of lists, has the absolute time after every count is read off
+    ones_counts = [] #list of lists, has the bit list for each experiment
+    angles = [] #list of lists, has the total theta rotation after each count
+    ideal_angles = [] #has the ideal theta rotation after each count (should be the same for all points in an experiment)
+    absolute_time = 0 #seconds
+    rho0 = _qt.operator_to_vector(_qt.ket2dm(_qt.basis(2,0)))
+    rho1 = _qt.operator_to_vector(_qt.ket2dm(_qt.basis(2,1)))
+    
+    for experiment_index in range(len(experiment_list)):
+        experiment = experiment_list[experiment_index]
+        compressed_experiment = compress_gate_list(experiment)
+        detuning = delta_list[experiment_index]
+        absolute_time += experiment_sample_time
+        rho = rho0
+        total_angle = 0
+        total_ideal_angle = 0
+        for gate_name, repetitions in compressed_experiment:
+            noise_at_time = 0 #To-do: add a noise object, make this variale a function of absolute_time and noise obj
+            if gate_name == 'Gx':
+                angle = (np.pi/2 + noise_at_time)*repetitions
+                ideal_angle = (np.pi/2)*repetitions
+                rho = (_qt.to_super(_qt.rx(angle))) * rho
+                #this section just keeps the angle between 0 and pi
+                angle = angle % (2*np.pi)
+                ideal_angle = ideal_angle % (2*np.pi)
+                if angle > np.pi:
+                    angle = 2*np.pi - angle
+                if angle < 0:
+                    angle = 0 + abs(angle)
+                if ideal_angle > np.pi:
+                    ideal_angle = 2*np.pi - ideal_angle
+                if ideal_angle < 0:
+                    ideal_angle = 0 + abs(ideal_angle)
+            elif gate_name == 'Gy':
+                angle = (np.pi/2 + noise_at_time)*repetitions
+                ideal_angle = (np.pi/2)*repetitions
+                rho = (_qt.to_super(_qt.ry(angle))) * rho
+                #this section just keeps the angle between 0 and pi
+                angle = angle % (2*np.pi)
+                ideal_angle = ideal_angle % (2*np.pi)
+                if angle > np.pi:
+                    angle = 2*np.pi - angle
+                if angle < 0:
+                    angle = 0 + abs(angle)
+                if ideal_angle > np.pi:
+                    ideal_angle = 2*np.pi - ideal_angle
+                if ideal_angle < 0:
+                    ideal_angle = 0 + abs(ideal_angle)
+            elif gate_name == "Gi":
+                #print("starting {} with z-rotation 2pi*{:.2f}".format(gate_list_to_string(experiment), detuning*(time_per_gate*repetitions + gate_switching_time)))
+                #if there is detuning, rotate about the z-axis by 
+                # the detuning*time_per_gate*number of Gi gates
+                angle = 2*np.pi*detuning*(time_per_gate*repetitions + gate_switching_time)
+                rho = (_qt.to_super(_qt.rz(angle))) * rho
+            total_angle += angle
+            total_ideal_angle += ideal_angle
+           
+        #calculate probabilities of being in 1 after the all the gates in the experiment have been applied
+        p1 = (rho.dag()*rho1).norm()
+        #fix the p1 if it exceeds 1 due to rounding error
+        if p1 > 1:
+            p1 = 2 - p1
+        #get nCounts of data (bits) for the experiment
+        one_counts = np.random.binomial(nCounts,p1)      
+        angles.append(total_angle)
+        ideal_angles.append(total_ideal_angle)
+        probs.append(p1)
+        ones_counts.append(one_counts)
+        time_per_experiment_set.append(absolute_time)
+
+    
+    return np.asarray(ones_counts), np.asarray(time_per_experiment_set), np.asarray(probs), np.asarray(varied_param)
+                
+        
+    
+    
 
 if __name__=='__main__':
 
@@ -252,10 +335,10 @@ if __name__=='__main__':
     amp_list = tuple(amp_list)
     phase_list= tuple(phase_list)
     #create_1f_data(time_per_count, nSamples, nCounts, gate_list, amp, fluctuators, start_f, stop_f, time_units)
-    ones, zeros, times, probs, expected_angles, angles, sig = create_data(time_per_count, nSamples, nCounts, gate_list, time_units, noise_type, walking_amp, telegraph_amp, \
-                res, freq_list, amp_list, phase_list, start_f, stop_f, fluctuators,plot_noise,add_noise,noise_object=None,dc_angle_offset=dc_angle_offset, constant_linear_drift=constant_linear_drift)
+    #ones, zeros, times, probs, expected_angles, angles, sig = create_data(time_per_count, nSamples, nCounts, gate_list, time_units, noise_type, walking_amp, telegraph_amp, \
+                #res, freq_list, amp_list, phase_list, start_f, stop_f, fluctuators,plot_noise,add_noise,noise_object=None,dc_angle_offset=dc_angle_offset, constant_linear_drift=constant_linear_drift)
     
-    
+    '''
     #print("times have {} points".format(len(times)))
     #print("ones list has {} points".format(len(ones)))
     #print("there were {} input points".format(nSamples))
@@ -268,4 +351,28 @@ if __name__=='__main__':
     plt.ylim(0,1)
     plt.title("1-state Probability Using Simulated Data\nDrift Freq {} Hz at {} rads, averaging {}-counts per point".format(freq_list,amp_list,nCounts))
     plt.ylabel("Probability\n(Total 1-counts/total counts per sample)")
+    plt.show()'''
+    
+    left_gate_list = ['Gx']
+    right_gate_list = left_gate_list
+    L = [i for i in range(1,200,5)]
+    transition_f = 700e12
+    field_f = transition_f + 5e3
+    nCounts = 50
+    time_per_gate = 6e-6
+    gate_switching_time = 3e-6
+    experiment_sample_time = 1/60 #s
+    rams_ones, rams_times, rams_probs, varied_params = ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f, \
+                      nCounts, time_per_gate, gate_switching_time, \
+                      experiment_sample_time, time_units=1e-3, noise_type=None, freq_list=0,amp_list=0, phase_list=0,\
+                      start_f=0, stop_f=0, fluctuators=0,plot_noise=False,add_noise=False,noise_object=None)
+    
+    plt.figure(figsize=(10,4))
+    plt.plot(varied_params, rams_probs, label="Expected Probability")
+    plt.plot(varied_params, rams_ones/nCounts, marker='.', label="Averaged over {}-Counts".format(nCounts))
+    plt.xlabel("Varied Parameter (either delay time in s, or detuning in Hz)")
+    plt.ylabel("1-state Probability")
+    plt.title("Ramsey Fringes")
+    plt.legend()
+    plt.grid()
     plt.show()
