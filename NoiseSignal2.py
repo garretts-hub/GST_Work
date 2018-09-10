@@ -242,14 +242,9 @@ class NoiseSignalSine(NoiseSignal):
         self.next_interval_start_time = self.times[-1] + self.step
         #print("After next interval, end time is {}".format(self.times[-1]))
         
-    def plot_noise_signal(self, show_components=True, seconds=False):
+    def plot_noise_signal(self, show_components=True):
         '''Shows a plot of the individual waves, and a plot of the summed wave, if components = True'''
-        if seconds: 
-            times = self.times*self.time_unit
-            time_label = "s"
-        else:
-            times = self.times
-            time_label = "time unit"
+
         times = self.times
         summed = self.summed_points
         components = self.list_of_point_lists
@@ -262,7 +257,7 @@ class NoiseSignalSine(NoiseSignal):
                 freq = self.freq_list[wave_index]
                 plt.plot(times, wave, label="{:.2f} Hz".format(freq), marker=marker, linewidth=linewidth, markersize=markersize)
             plt.grid()
-            plt.xlabel("Time in {}".format(time_label))
+            plt.xlabel("Time in selected units ({:.0e} s)".format(self.time_unit))
             plt.ylabel("Amplitude, a.u.")
             plt.legend()
             plt.title("Component Waves")
@@ -270,7 +265,7 @@ class NoiseSignalSine(NoiseSignal):
         
         plt.plot(times, summed, marker=marker, linewidth=linewidth,markersize=markersize)
         plt.grid()
-        plt.xlabel("Time in {}".format(time_label))
+        plt.xlabel("Time in selected units ({:.0e} s)".format(self.time_unit))
         plt.ylabel("Amplitude, a.u.")
         plt.title("Sinusoidal Noise Signal")
         plt.show()

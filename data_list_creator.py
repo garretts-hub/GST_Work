@@ -190,7 +190,7 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
 
 def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f, nCounts, time_per_gate, gate_switching_time, \
                       experiment_sample_time, time_units=1e-6, noise_type=None, freq_list=0,amp_list=0, phase_list=0,\
-                      start_f=0, stop_f=0, fluctuators=0,plot_noise=False,add_noise=False):
+                      start_f=0, stop_f=0, fluctuators=0, plot_noise = False):
     #left and right gate_lists: lists of the gates sandwiching the Gi gates
     #L: the number of Gi gates. If you want to vary this, make it a list
     #field_f: frequency of external field in Hz. To vary this, make it a list. Either L or field_f must vary.
@@ -213,53 +213,56 @@ def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f,
         experiment_list = []
         for l in L:
             experiment_list.append(left_gate_list + ['Gi']*l + right_gate_list)
-        delta_list = [field_f - transition_f]*total_experiments
+        field_f_list = [field_f]*total_experiments
         varied_param = [(time_per_gate*l + gate_switching_time) for l in L]
         
     else:
         total_experiments = len(field_f)
         experiment_list = [left_gate_list + ['Gi']*L + right_gate_list]*total_experiments
-        delta_list = [freq - transition_f for freq in field_f]
+        field_f_list = field_f
         varied_param = delta_list
         
     #create a noise object:
     if noise_type != None and noise_type == "Sine":
-        total_time = total_experiments*nCounts*experiment_sample_time #assumes that every count is taken every 0.016 seconds, and that no experiment takes longer than that
+        total_time = total_experiments*nCounts*experiment_sample_time + 1#assumes that every count is taken every 0.016 seconds; no experiment takes longer
         sig = _ns.NoiseSignalSine(time_unit=time_units)
-        sig.configure_noise(resolution_factor=1, freq_list=freq_list, amp_list=amp_list, phase_list=phase_list, total_time=total_time)
+        sig.configure_noise(resolution_factor=1, freq_list=freq_list, amp_list=amp_list, phase_list=phase_list, total_time=total_time/time_units)
         sig.init()
         
-    probs = [] #total_experiments-length list of lists, where each internal list has an nCount list of probabilities
-    time_per_experiment_set = [] #a list of lists, has the absolute time after every count is read off
-    ones_counts = [] #list of lists, has the bit list for each experiment
-    angles = [] #list of lists, has the total theta rotation after each count
-    ideal_angles = [] #has the ideal theta rotation after each count (should be the same for all points in an experiment)
+        if plot_noise==True:
+            sig.plot_noise_signal()
+        
+    probs = [] #a list of total_expeirment* elements. Has the probability for each experiment set (assumes constant p for all nCounts)
+    time_per_experiment_set = [] #has the time at the start of each experiment set
+    ones_counts = [] #number of 1s counted for each experiment set
+    angles = [] #total theta rotation for each experiment set
+    ideal_angles = [] #has the ideal theta rotation for each experiment set
+    transition_f_list = [] #list of the transition frequency at the start of each experiment set
+    detuning_list = [] #list of the detuning at the start of each experiment set
     absolute_time = 0 #seconds
     rho0 = _qt.operator_to_vector(_qt.ket2dm(_qt.basis(2,0)))
     rho1 = _qt.operator_to_vector(_qt.ket2dm(_qt.basis(2,1)))
     
-    for experiment_index in range(len(experiment_list)):
+    for experiment_index in range(total_experiments):
         experiment = experiment_list[experiment_index]
         compressed_experiment = compress_gate_list(experiment)
-        detuning = delta_list[experiment_index]
-        absolute_time += experiment_sample_time
+        #the following line assumes that each count for each experiment set is triggered at 0.0167 seconds (no single gate sequence can be longer than 1/60)
+        absolute_time += experiment_sample_time*nCounts
+        #print("Starting experiment set {} at {} s".format(experiment_index, absolute_time))
         rho = rho0
         total_angle = 0
         total_ideal_angle = 0
+        modified_transition_f = transition_f
+        detuning = field_f_list[experiment_index] - modified_transition_f
         for gate_name, repetitions in compressed_experiment:
             if noise_type != None:
-                noise_at_time = sig[time/time_units]
+                if absolute_time >= total_time:
+                    print("Abs time: {}, total_time: {}".format(absolute_time, total_time))
+                detuning_noise = sig[absolute_time/time_units]
             else:
-                noise_at_time = 0 #To-do: add a noise object, make this variale a function of absolute_time and noise obj
-            '''
-            Need to do 2 things with the noise object:
-                1. find how much a change in B will change the resonant frequency
-                2. use this change in resonant frequency to determine relative phase accumulation.
-                It should act on phi and theta rotations differently, not always just treated as a
-                theta overrotation.
-            '''
+                detuning_noise = 0
             if gate_name == 'Gx':
-                angle = (np.pi/2 + noise_at_time)*repetitions
+                angle = (np.pi/2)*repetitions
                 ideal_angle = (np.pi/2)*repetitions
                 rho = (_qt.to_super(_qt.rx(angle))) * rho
                 #this section just keeps the angle between 0 and pi
@@ -274,7 +277,7 @@ def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f,
                 if ideal_angle < 0:
                     ideal_angle = 0 + abs(ideal_angle)
             elif gate_name == 'Gy':
-                angle = (np.pi/2 + noise_at_time)*repetitions
+                angle = (np.pi/2)*repetitions
                 ideal_angle = (np.pi/2)*repetitions
                 rho = (_qt.to_super(_qt.ry(angle))) * rho
                 #this section just keeps the angle between 0 and pi
@@ -290,8 +293,9 @@ def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f,
                     ideal_angle = 0 + abs(ideal_angle)
             elif gate_name == "Gi":
                 #print("starting {} with z-rotation 2pi*{:.2f}".format(gate_list_to_string(experiment), detuning*(time_per_gate*repetitions + gate_switching_time)))
-                #if there is detuning, rotate about the z-axis by 
-                # the detuning*time_per_gate*number of Gi gates
+                #make the transition frequency oscillate between a fraction of its nominal value
+                modified_transition_f = transition_f*(1+detuning_noise)
+                detuning = field_f_list[experiment_index] - modified_transition_f
                 angle = 2*np.pi*detuning*(time_per_gate*repetitions + gate_switching_time)
                 rho = (_qt.to_super(_qt.rz(angle))) * rho
             total_angle += angle
@@ -309,13 +313,10 @@ def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f,
         probs.append(p1)
         ones_counts.append(one_counts)
         time_per_experiment_set.append(absolute_time)
+        transition_f_list.append(modified_transition_f)
+        detuning_list.append(detuning)
 
-    
     return np.asarray(ones_counts), np.asarray(time_per_experiment_set), np.asarray(probs), np.asarray(varied_param)
-                
-        
-    
-    
 
 if __name__=='__main__':
 
@@ -352,7 +353,6 @@ if __name__=='__main__':
     freq_list=tuple(freq_list)
     amp_list = tuple(amp_list)
     phase_list= tuple(phase_list)
-    #create_1f_data(time_per_count, nSamples, nCounts, gate_list, amp, fluctuators, start_f, stop_f, time_units)
     #ones, zeros, times, probs, expected_angles, angles, sig = create_data(time_per_count, nSamples, nCounts, gate_list, time_units, noise_type, walking_amp, telegraph_amp, \
                 #res, freq_list, amp_list, phase_list, start_f, stop_f, fluctuators,plot_noise,add_noise,noise_object=None,dc_angle_offset=dc_angle_offset, constant_linear_drift=constant_linear_drift)
     
@@ -373,17 +373,23 @@ if __name__=='__main__':
     
     left_gate_list = ['Gx']
     right_gate_list = left_gate_list
-    L = [i for i in range(1,200,5)]
+    L = [i for i in range(1,300,3)]
     transition_f = 700e12
-    field_f = transition_f + 5e3
+    field_f = transition_f + 5e4
     nCounts = 50
     time_per_gate = 6e-6
     gate_switching_time = 3e-6
     experiment_sample_time = 1/60 #s
+    ###parameters for drifting noise object
+    noise = 'Sine'
+    plotted_noise = True
+    freqs = [1.2]
+    amps = [1e-10] #percent by which you want to oscillate the transition frequency
+    phases = [0]
+        
     rams_ones, rams_times, rams_probs, varied_params = ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f, \
-                      nCounts, time_per_gate, gate_switching_time, \
-                      experiment_sample_time, time_units=1e-3, noise_type=None, freq_list=0,amp_list=0, phase_list=0,\
-                      start_f=0, stop_f=0, fluctuators=0,plot_noise=False,add_noise=False,noise_object=None)
+                      nCounts, time_per_gate, gate_switching_time, experiment_sample_time, time_units=1e-3, noise_type=noise, \
+                      freq_list=freqs,amp_list=amps, phase_list=phases, plot_noise=plotted_noise)
     
     plt.figure(figsize=(10,4))
     plt.plot(varied_params, rams_probs, label="Expected Probability")
@@ -391,6 +397,6 @@ if __name__=='__main__':
     plt.xlabel("Varied Parameter (either delay time in s, or detuning in Hz)")
     plt.ylabel("1-state Probability")
     plt.title("Ramsey Fringes")
-    plt.legend()
+    plt.legend(loc="lower right")
     plt.grid()
     plt.show()
