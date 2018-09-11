@@ -11,6 +11,7 @@ sys.path.append("C:/Users/GA28573/AppData/Local/Continuum/anaconda32/Lib/site-pa
 import NoiseSignal2 as _ns
 import qutip as _qt
 import numpy as np
+from pygsti.extras import drift
 import pylab as plt
 
 def gate_string_to_list(gate_string):
@@ -191,3 +192,92 @@ def find_band_power(frequencies, powers, low_bound, high_bound):
             break
     freq_range = high_freq - low_freq
     return (power, freq_range)
+
+def single_frequency_reconstruction(drifted, low_freq, high_freq, \
+                                    print_info=False, plot_original=False, plot_results=False): 
+    #requires a Drift object as the input
+    '''
+    Takes the frequency with the maximum power within a band of specified frequencies, 
+    and does the IDCT of just that frequency and its power. Returns a plot showing the
+    probability as a function of time.
+    '''
+    #copy relevant info from the drift object
+    all_frequencies = list(drifted.frequencies)
+    all_modes = drifted.pspepo_modes[0,0,1,:]
+    all_powers = list(all_modes**2)
+    nSamples = len(drifted.data[0,0,1,:])
+    nCounts = drifted.number_of_counts
+    
+    if plot_original:
+        plt.figure(figsize=(15,3))
+        plt.plot(all_frequencies, np.asarray(all_powers)/nSamples)
+        plt.xlabel("Frequency, Hz")
+        plt.ylabel("Normalized Power, a.u.")
+        plt.title("ORIGINAL Normalized Power Spectrum")
+        plt.show()
+        
+        plt.figure(figsize=(15,3))
+        times = np.linspace(0, drifted.timestep*nSamples, nSamples)
+        plt.plot(times, drifted.pspepo_reconstruction[0,0,1,:])
+        plt.xlabel("Time, seconds")
+        plt.ylabel("1-State Probability")
+        plt.ylim(0,1)
+        plt.grid()
+        plt.xlim(0, times[-1])
+        plt.title("ORIGINAL pyGSTi Probability Reconstruction\n(using the entire power spectrum)")
+        plt.show()
+        
+        
+    
+    #find the max power within the frequency range and its associated index and frequency
+    max_power = find_max_power(all_frequencies, all_powers, low_freq, high_freq)
+    max_power_index = all_powers.index(max_power)
+    max_frequency = all_frequencies[max_power_index]
+    if print_info:
+        print("Max normalized power is {:.2f} at a frequency of {:.4f} Hz.".format(max_power/nSamples, max_frequency))
+    
+    #all modes except for the maximum one in the specified range are set to zero
+    modified_modes = [0]*len(all_modes)
+    modified_modes[max_power_index] = all_modes[max_power_index]
+    
+    #do the reconstruction here
+    the_null_hypothesis = np.mean(drifted.data[0,0,1,:])*np.ones(nSamples,float)/nCounts
+    my_reconstruction = drift.IDCT(modified_modes, null_hypothesis=the_null_hypothesis, counts=nCounts)/nCounts
+    my_reconstruction = drift.renormalizer(my_reconstruction, method='logistic')
+    
+    if plot_results:
+        plt.figure(figsize=(15,3))
+        plt.plot(all_frequencies, (np.asarray(modified_modes)**2)/nSamples)
+        plt.xlabel("Frequency, Hz")
+        plt.ylabel("Normalized Power, a.u.")
+        plt.title("Normalized Power Spectrum going into the IDCT\n(Peak at {:.4f} Hz)".format(max_frequency))
+        plt.show()
+        
+        plt.figure(figsize=(15,3))
+        plt.title("Reconstructed Probability Plot using IDCT\n(Using {:.4f} Hz)".format(max_frequency))
+        plt.ylabel("1-State Probability")
+        plt.xlabel("Time, seconds")
+        plt.ylim(0,1)
+        times = np.linspace(0, drifted.timestep*nSamples, nSamples)
+        plt.grid()
+        plt.xlim(0, times[-1])
+        plt.plot(times, my_reconstruction, label='Reconstructed Probability: {:.3f}sin(2$\pi$ft) + {:.3f}'.format(max(my_reconstruction) - the_null_hypothesis[0],\
+                 the_null_hypothesis[0]))
+        plt.plot(times, the_null_hypothesis, label='Null Hypothesis: {:.3f}'.format(the_null_hypothesis[0]))
+        plt.legend(loc="lower right")
+        plt.show()
+        
+    return my_reconstruction
+        
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
