@@ -165,11 +165,12 @@ def find_max_power(frequencies, powers, low_bound, hi_bound):
     high_index = 0
     for f_i in range(len(frequencies)):
         freq = frequencies[f_i]
-        if freq > hi_bound:
-            high_index = f_i
         if freq > low_bound and low_index == 0:
             low_index = f_i
-    
+        if freq > hi_bound:
+            high_index = f_i
+            break
+    #print(frequencies[low_index:high_index])
     max_power = max(powers[low_index:high_index])
     return max_power
 
@@ -192,6 +193,34 @@ def find_band_power(frequencies, powers, low_bound, high_bound):
             break
     freq_range = high_freq - low_freq
     return (power, freq_range)
+
+def above_and_below(central_freq, frequencies, powers):
+    '''
+    finds the powers for the frequency just below and just above central_freq.
+    Returns: 
+        -the summed powers
+        -lower frequency
+        -upper frequency
+        -the index of that closest frequency
+    '''
+    closest_index = 0
+    summed_power = 0
+    for fi in range(len(frequencies)):
+        freq = frequencies[fi]
+        if freq > central_freq:
+            upper = freq
+            lower = frequencies[fi - 1]
+            summed_power = abs(powers[fi]) + abs(powers[fi - 1])
+            #for the case that the upper frequency is closer
+            if upper-central_freq < central_freq-lower:
+                closest_index = fi
+            #for all others, i.e. the lower freq is closer
+            else:
+                closest_index = fi - 1
+            break
+    
+    return summed_power, lower, upper, closest_index
+            
 
 def single_frequency_reconstruction(drifted, low_freq, high_freq, \
                                     print_info=False, plot_original=False, plot_results=False): 
@@ -228,7 +257,6 @@ def single_frequency_reconstruction(drifted, low_freq, high_freq, \
         plt.show()
         
         
-    
     #find the max power within the frequency range and its associated index and frequency
     max_power = find_max_power(all_frequencies, all_powers, low_freq, high_freq)
     max_power_index = all_powers.index(max_power)
@@ -245,14 +273,15 @@ def single_frequency_reconstruction(drifted, low_freq, high_freq, \
     my_reconstruction = drift.IDCT(modified_modes, null_hypothesis=the_null_hypothesis, counts=nCounts)/nCounts
     my_reconstruction = drift.renormalizer(my_reconstruction, method='logistic')
     
-    if plot_results:
+    if print_info:
         plt.figure(figsize=(15,3))
         plt.plot(all_frequencies, (np.asarray(modified_modes)**2)/nSamples)
         plt.xlabel("Frequency, Hz")
         plt.ylabel("Normalized Power, a.u.")
         plt.title("Normalized Power Spectrum going into the IDCT\n(Peak at {:.4f} Hz)".format(max_frequency))
         plt.show()
-        
+    
+    if plot_results:
         plt.figure(figsize=(15,3))
         plt.title("Reconstructed Probability Plot using IDCT\n(Using {:.4f} Hz)".format(max_frequency))
         plt.ylabel("1-State Probability")
@@ -267,7 +296,92 @@ def single_frequency_reconstruction(drifted, low_freq, high_freq, \
         plt.legend(loc="lower right")
         plt.show()
         
-    return my_reconstruction
+    amplitude = max(my_reconstruction) - the_null_hypothesis[0]
+        
+    return my_reconstruction, amplitude
+
+
+
+
+
+
+def multi_frequency_reconstruction(drifted, central_freq, \
+                                    print_info=False, plot_original=False, plot_results=False): 
+        #requires a Drift object as the input
+    '''
+    Takes a given frequency, then finds the FT frequency just below and just above that frequency.
+    Sums the power of those two frequencies and associates it with whichever frequency is closer.
+    Sets the power of all other frequencies to zero, then does the IDCT of the modified power spectrum.
+    Returns a plot showing the probability as a function of time and a calculated amplitude of the
+    probability oscillation about the mean.
+    '''
+    #copy relevant info from the drift object
+    all_frequencies = list(drifted.frequencies)
+    all_modes = drifted.pspepo_modes[0,0,1,:]
+    all_powers = list(all_modes**2)
+    nSamples = len(drifted.data[0,0,1,:])
+    nCounts = drifted.number_of_counts
+    
+    if plot_original:
+        plt.figure(figsize=(15,3))
+        plt.plot(all_frequencies, np.asarray(all_powers)/nSamples)
+        plt.xlabel("Frequency, Hz")
+        plt.ylabel("Normalized Power, a.u.")
+        plt.title("ORIGINAL Normalized Power Spectrum")
+        plt.show()
+        
+        plt.figure(figsize=(15,3))
+        times = np.linspace(0, drifted.timestep*nSamples, nSamples)
+        plt.plot(times, drifted.pspepo_reconstruction[0,0,1,:])
+        plt.xlabel("Time, seconds")
+        plt.ylabel("1-State Probability")
+        plt.ylim(0,1)
+        plt.grid()
+        plt.xlim(0, times[-1])
+        plt.title("ORIGINAL pyGSTi Probability Reconstruction\n(using the entire power spectrum)")
+        plt.show()
+        
+        
+    #Summs the modes just above and just below the central frequency, and associates them with
+    # whichever frequency is closer to central_freq
+    summed_mode, lower_freq, upper_freq, closest_index = above_and_below(central_freq, all_frequencies, all_modes)
+    input_modes = [0]*(len(all_modes))
+    input_modes[closest_index] = summed_mode
+    if print_info:
+        print("Using {:.4f} and {:.4f} Hz, with summed power {}".format(lower_freq, upper_freq, summed_mode**2))
+    
+   
+    #do the reconstruction here
+    the_null_hypothesis = np.mean(drifted.data[0,0,1,:])*np.ones(nSamples,float)/nCounts
+    my_reconstruction = drift.IDCT(input_modes, null_hypothesis=the_null_hypothesis, counts=nCounts)/nCounts
+    my_reconstruction = drift.renormalizer(my_reconstruction, method='logistic')
+    
+    if print_info:
+        plt.figure(figsize=(15,3))
+        plt.plot(all_frequencies, (np.asarray(input_modes)**2)/nSamples)
+        plt.xlabel("Frequency, Hz")
+        plt.ylabel("Normalized Power, a.u.")
+        plt.title("Normalized Power Spectrum going into the IDCT\n(Merging power at {:.4f} and {:.4f} Hz".format(lower_freq, upper_freq))
+        plt.show()
+    
+    if plot_results:
+        plt.figure(figsize=(15,3))
+        plt.title("Reconstructed Probability Plot using IDCT\n(Merging power at {:.4f} and {:.4f} Hz".format(lower_freq, upper_freq))
+        plt.ylabel("1-State Probability")
+        plt.xlabel("Time, seconds")
+        plt.ylim(0,1)
+        times = np.linspace(0, drifted.timestep*nSamples, nSamples)
+        plt.grid()
+        plt.xlim(0, times[-1])
+        plt.plot(times, my_reconstruction, label='Reconstructed Probability: {:.3f}sin(2$\pi$ft) + {:.3f}'.format(max(my_reconstruction) - the_null_hypothesis[0],\
+                 the_null_hypothesis[0]))
+        plt.plot(times, the_null_hypothesis, label='Null Hypothesis: {:.3f}'.format(the_null_hypothesis[0]))
+        plt.legend(loc="lower right")
+        plt.show()
+        
+    amplitude = max(my_reconstruction) - the_null_hypothesis[0]
+    
+    return my_reconstruction, amplitude
         
     
     

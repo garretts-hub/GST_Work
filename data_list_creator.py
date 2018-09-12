@@ -178,8 +178,10 @@ def create_data(time_per_count, num_samples, num_counts, gate_list, time_unit, n
         plt.grid()
         plt.show()        
         
+        plt.figure(figsize=(15,3))
         plt.plot(timestamps, probs)
         plt.ylim(0,1)
+        plt.xlim(timestamps[0], timestamps[-1])
         plt.xlabel("Time, seconds")
         plt.ylabel("Probability of Measuring State {1}")
         plt.title("Simulated {} with {} Noise".format(gate_list_to_string(gate_list), noise_type))
@@ -320,17 +322,16 @@ def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f,
 
 if __name__=='__main__':
 
-    gate_string = "GxGxGxGx"                                
+    gate_string = "(Gx)^41"                                
     #print("Start with string {}".format(gate_string))
-    #gate_list = gate_string_to_list(gate_string)
+    gate_list = gate_string_to_list(gate_string)
     #print("Input list of length {}".format(len(gate_list)))
     #print("Compressed form: {}".format(compress_gate_list(gate_list)))
     #print("Converted back to string: {}".format(gate_list_to_string(gate_list)))
-    nSamples = 4  #total samples to take for each measurement
+    nSamples = 8000  #total samples to take for each measurement
     nCounts = 1      #total shots to take at one; =nSamples: same noise, probabilities for all repeats; =1, new experiment & noise for each count
     time_per_count = 1/60 #seconds
     time_units = 1e-3 #seconds
-    amp = 0.05
     noise_type='Sine' #Sine, Random Walk, Telegraph
     plot_noise=True
     walking_amp = 0.001
@@ -340,8 +341,8 @@ if __name__=='__main__':
     low_frequency_noise = [] #uncomment this to eliminate low_frequency noise
     low_frequency_amps = [0.005*i for i in range(len(low_frequency_noise))]
     low_frequency_phase = [0]*len(low_frequency_noise)
-    freq_list=[0.5]#1.2, 6, 8.4, 9.6] + low_frequency_noise
-    amp_list=[0.00]#.002, 0.002, 0.0015, 0.0015] + low_frequency_amps
+    freq_list=[1.2]#1.2, 6, 8.4, 9.6] + low_frequency_noise
+    amp_list=[0.008]#.002, 0.002, 0.0015, 0.0015] + low_frequency_amps
     phase_list=[0]#,0,0,0] + low_frequency_phase
     dc_angle_offset = 0
     constant_linear_drift = 0
@@ -353,10 +354,10 @@ if __name__=='__main__':
     freq_list=tuple(freq_list)
     amp_list = tuple(amp_list)
     phase_list= tuple(phase_list)
-    #ones, zeros, times, probs, expected_angles, angles, sig = create_data(time_per_count, nSamples, nCounts, gate_list, time_units, noise_type, walking_amp, telegraph_amp, \
-                #res, freq_list, amp_list, phase_list, start_f, stop_f, fluctuators,plot_noise,add_noise,noise_object=None,dc_angle_offset=dc_angle_offset, constant_linear_drift=constant_linear_drift)
+    ones, zeros, times, probs, expected_angles, angles, sig = create_data(time_per_count, nSamples, nCounts, gate_list, time_units, noise_type, walking_amp, telegraph_amp, \
+                res, freq_list, amp_list, phase_list, start_f, stop_f, fluctuators,plot_noise,add_noise,noise_object=None,dc_angle_offset=dc_angle_offset, constant_linear_drift=constant_linear_drift)
     
-    '''
+    
     #print("times have {} points".format(len(times)))
     #print("ones list has {} points".format(len(ones)))
     #print("there were {} input points".format(nSamples))
@@ -369,9 +370,9 @@ if __name__=='__main__':
     plt.ylim(0,1)
     plt.title("1-state Probability Using Simulated Data\nDrift Freq {} Hz at {} rads, averaging {}-counts per point".format(freq_list,amp_list,nCounts))
     plt.ylabel("Probability\n(Total 1-counts/total counts per sample)")
-    plt.show()'''
+    plt.show()
     
-    left_gate_list = ['Gx']
+    '''left_gate_list = ['Gx']
     right_gate_list = left_gate_list
     L = [i for i in range(1,300,3)]
     transition_f = 700e12
@@ -392,11 +393,24 @@ if __name__=='__main__':
                       freq_list=freqs,amp_list=amps, phase_list=phases, plot_noise=plotted_noise)
     
     plt.figure(figsize=(10,4))
-    plt.plot(varied_params, rams_probs, label="Expected Probability")
     plt.plot(varied_params, rams_ones/nCounts, marker='.', label="Averaged over {}-Counts".format(nCounts))
     plt.xlabel("Varied Parameter (either delay time in s, or detuning in Hz)")
     plt.ylabel("1-state Probability")
-    plt.title("Ramsey Fringes")
+    plt.title("Ramsey Fringes WITH Oscillatory Detuning")
     plt.legend(loc="lower right")
     plt.grid()
     plt.show()
+    
+    
+    rams_ones, rams_times, rams_probs, varied_params = ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f, \
+                      nCounts, time_per_gate, gate_switching_time, experiment_sample_time, time_units=1e-3, noise_type=None, \
+                      freq_list=freqs,amp_list=amps, phase_list=phases, plot_noise=plotted_noise)
+    
+    plt.figure(figsize=(10,4))
+    plt.plot(varied_params, rams_ones/nCounts, marker='.', label="Averaged over {}-Counts".format(nCounts))
+    plt.xlabel("Varied Parameter (either delay time in s, or detuning in Hz)")
+    plt.ylabel("1-state Probability")
+    plt.title("Ramsey Fringes without Oscillatory Detuning")
+    plt.legend(loc="lower right")
+    plt.grid()
+    plt.show()'''
