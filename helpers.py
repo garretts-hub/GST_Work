@@ -157,6 +157,15 @@ def SNR(frequencies, powers, central_freq, freq_band):
             signal_power += powers[index]
     rms = RMS(powers)
     return signal_power/rms
+
+def find_closest_frequency(frequencies, freq_of_interest):
+    #finds the frequency and its index from a list closest to that of interest
+    frequencies = np.asarray(frequencies)
+    differences = abs(frequencies - freq_of_interest)
+    minimum_difference = min(differences)
+    minimum_index = list(differences).index(minimum_difference)
+    closest_freq = frequencies[minimum_index]
+    return closest_freq, minimum_index
                 
 
 def find_max_power(frequencies, powers, low_bound, hi_bound):
@@ -218,7 +227,6 @@ def above_and_below(central_freq, frequencies, powers):
             else:
                 closest_index = fi - 1
             break
-    
     return summed_power, lower, upper, closest_index
             
 
@@ -305,12 +313,13 @@ def single_frequency_reconstruction(drifted, low_freq, high_freq, \
 
 
 
-def multi_frequency_reconstruction(drifted, central_freq, \
+def multi_frequency_reconstruction(drifted, central_freq, tolerance_band,\
                                     print_info=False, plot_original=False, plot_results=False): 
         #requires a Drift object as the input
     '''
-    Takes a given frequency, then finds the FT frequency just below and just above that frequency.
-    Sums the power of those two frequencies and associates it with whichever frequency is closer.
+    Looks within the range of tolerance band - central freq to central freq + tolerance band.
+    Takes the two highest peaks in that band, and associates their power with the peak closest to the
+      central_freq power.
     Sets the power of all other frequencies to zero, then does the IDCT of the modified power spectrum.
     Returns a plot showing the probability as a function of time and a calculated amplitude of the
     probability oscillation about the mean.
@@ -342,13 +351,24 @@ def multi_frequency_reconstruction(drifted, central_freq, \
         plt.show()
         
         
-    #Summs the modes just above and just below the central frequency, and associates them with
-    # whichever frequency is closer to central_freq
-    summed_mode, lower_freq, upper_freq, closest_index = above_and_below(central_freq, all_frequencies, all_modes)
-    input_modes = [0]*(len(all_modes))
+    #Find the two highest frequencies within the frequency band of interest, and associate their combined
+    # power with the frequency closest to the central frequency
+    info_tuples = []
+    for fi in range(len(all_frequencies)):
+        freq = all_frequencies[fi]
+        if (central_freq - tolerance_band) < freq < (central_freq + tolerance_band):
+            info_tuples.append((fi, freq, all_modes[fi], all_powers[fi]))
+        elif freq > (central_freq + tolerance_band):
+            break
+    #sort them descending by their power, the 4th element in the tuple
+    sorted_tuples = sorted(info_tuples, key=lambda tup: tup[3], reverse=True)
+    summed_mode = abs(sorted_tuples[0][2]) + abs(sorted_tuples[1][2])
+    summed_power = summed_mode**2
+    input_modes = [0]*len(all_modes)
+    closest_freq, closest_index = find_closest_frequency(all_frequencies, central_freq)
     input_modes[closest_index] = summed_mode
     if print_info:
-        print("Using {:.4f} and {:.4f} Hz, with summed power {}".format(lower_freq, upper_freq, summed_mode**2))
+        print("Using {:.4f} and {:.4f} Hz, with summed power {}".format(sorted_tuples[0][1], sorted_tuples[1][1], summed_power))
     
    
     #do the reconstruction here
@@ -361,12 +381,12 @@ def multi_frequency_reconstruction(drifted, central_freq, \
         plt.plot(all_frequencies, (np.asarray(input_modes)**2)/nSamples)
         plt.xlabel("Frequency, Hz")
         plt.ylabel("Normalized Power, a.u.")
-        plt.title("Normalized Power Spectrum going into the IDCT\n(Merging power at {:.4f} and {:.4f} Hz".format(lower_freq, upper_freq))
+        plt.title("Normalized Power Spectrum going into the IDCT\n(Merging power at {:.4f} and {:.4f} Hz)".format(sorted_tuples[0][1], sorted_tuples[1][1]))
         plt.show()
     
     if plot_results:
         plt.figure(figsize=(15,3))
-        plt.title("Reconstructed Probability Plot using IDCT\n(Merging power at {:.4f} and {:.4f} Hz".format(lower_freq, upper_freq))
+        plt.title("Reconstructed Probability Plot using IDCT\n(Merging power at {:.4f} and {:.4f} Hz)".format(sorted_tuples[0][1], sorted_tuples[1][1]))
         plt.ylabel("1-State Probability")
         plt.xlabel("Time, seconds")
         plt.ylim(0,1)
