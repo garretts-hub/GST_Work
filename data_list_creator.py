@@ -322,7 +322,7 @@ def ramsey_experiment(left_gate_list, right_gate_list, L, field_f, transition_f,
 
 if __name__=='__main__':
 
-    gate_string = "(Gx)^41"                                
+    gate_string = "(Gx)^49"                                
     #print("Start with string {}".format(gate_string))
     gate_list = gate_string_to_list(gate_string)
     #print("Input list of length {}".format(len(gate_list)))
@@ -361,13 +361,14 @@ if __name__=='__main__':
     #print("times have {} points".format(len(times)))
     #print("ones list has {} points".format(len(ones)))
     #print("there were {} input points".format(nSamples))
-    print("Max probability is {}".format(max(probs)))
-    print("Min probability is {}".format(min(probs)))
-    print("Peak-to-Trough Amplitude of probability oscillation is {}".format(max(probs) - min(probs) ))
+
+    p_amplitude = (max(probs) - min(probs))/2
+    print(p_amplitude)
     
     plt.figure(figsize=(10,4))
     plt.plot(times, ones/nCounts,marker='.')
     plt.ylim(0,1)
+    plt.xlabel("Time, s")
     plt.title("1-state Probability Using Simulated Data\nDrift Freq {} Hz at {} rads, averaging {}-counts per point".format(freq_list,amp_list,nCounts))
     plt.ylabel("Probability\n(Total 1-counts/total counts per sample)")
     plt.show()
