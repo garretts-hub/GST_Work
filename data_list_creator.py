@@ -342,7 +342,7 @@ if __name__=='__main__':
     low_frequency_amps = [0.005*i for i in range(len(low_frequency_noise))]
     low_frequency_phase = [0]*len(low_frequency_noise)
     freq_list=[1.2]#1.2, 6, 8.4, 9.6] + low_frequency_noise
-    amp_list=[0.008]#.002, 0.002, 0.0015, 0.0015] + low_frequency_amps
+    amp_list=[0.002]#.002, 0.002, 0.0015, 0.0015] + low_frequency_amps
     phase_list=[0]#,0,0,0] + low_frequency_phase
     dc_angle_offset = 0
     constant_linear_drift = 0
@@ -354,8 +354,8 @@ if __name__=='__main__':
     freq_list=tuple(freq_list)
     amp_list = tuple(amp_list)
     phase_list= tuple(phase_list)
-    ones, zeros, times, probs, expected_angles, angles, sig = create_data(time_per_count, nSamples, nCounts, gate_list, time_units, noise_type, walking_amp, telegraph_amp, \
-                res, freq_list, amp_list, phase_list, start_f, stop_f, fluctuators,plot_noise,add_noise,noise_object=None,dc_angle_offset=dc_angle_offset, constant_linear_drift=constant_linear_drift)
+    #ones, zeros, times, probs, expected_angles, angles, sig = create_data(time_per_count, nSamples, nCounts, gate_list, time_units, noise_type, walking_amp, telegraph_amp, \
+                #res, freq_list, amp_list, phase_list, start_f, stop_f, fluctuators,plot_noise,add_noise,noise_object=None,dc_angle_offset=dc_angle_offset, constant_linear_drift=constant_linear_drift)
     
     
     #print("times have {} points".format(len(times)))
@@ -364,16 +364,9 @@ if __name__=='__main__':
 
     p_amplitude = (max(probs) - min(probs))/2
     print(p_amplitude)
+
     
-    plt.figure(figsize=(10,4))
-    plt.plot(times, ones/nCounts,marker='.')
-    plt.ylim(0,1)
-    plt.xlabel("Time, s")
-    plt.title("1-state Probability Using Simulated Data\nDrift Freq {} Hz at {} rads, averaging {}-counts per point".format(freq_list,amp_list,nCounts))
-    plt.ylabel("Probability\n(Total 1-counts/total counts per sample)")
-    plt.show()
-    
-    '''left_gate_list = ['Gx']
+    left_gate_list = ['Gx']
     right_gate_list = left_gate_list
     L = [i for i in range(1,300,3)]
     transition_f = 700e12
@@ -414,4 +407,4 @@ if __name__=='__main__':
     plt.title("Ramsey Fringes without Oscillatory Detuning")
     plt.legend(loc="lower right")
     plt.grid()
-    plt.show()'''
+    plt.show()

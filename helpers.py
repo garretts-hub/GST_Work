@@ -317,7 +317,7 @@ def multi_frequency_reconstruction(drifted, central_freq, tolerance_band,\
                                     print_info=False, plot_original=False, plot_results=False): 
         #requires a Drift object as the input
     '''
-    Looks within the range of tolerance band - central freq to central freq + tolerance band.
+    Looks within the range of (tolerance band - central freq) to (central freq + tolerance band).
     Takes the two highest peaks in that band, and associates their power with the peak closest to the
       central_freq power.
     Sets the power of all other frequencies to zero, then does the IDCT of the modified power spectrum.
