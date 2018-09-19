@@ -183,6 +183,16 @@ def find_max_power(frequencies, powers, low_bound, hi_bound):
     max_power = max(powers[low_index:high_index])
     return max_power
 
+def find_multi_max_power(frequencies, powers, low_bound, high_bound, num_powers):
+    #sums together the num_powers-highest powers in the band of frequencies
+    sorted_tuples = create_sorted_tuples(frequencies, powers, (low_bound, high_bound))
+    #print(sorted_tuples)
+    power_sum = 0
+    for i in range(num_powers):
+        power_sum += sorted_tuples[i][1]
+        #print("Adding {} from x-value {}".format(sorted_tuples[i][1], sorted_tuples[i][0]))
+    return power_sum
+
 def find_band_power(frequencies, powers, low_bound, high_bound):
     #sums the powers within a band of frequencies
     #returns the sum of those powers, and the range of frequencies that it spans
@@ -404,6 +414,15 @@ def multi_frequency_reconstruction(drifted, central_freq, tolerance_band,\
     return my_reconstruction, amplitude
         
     
+if __name__=='__main__':
+    f = np.arange(0, 20)
+    p = -(f - 10)**2 + 100
+    print(f)
+    print(p)
+    plt.plot(f, p)
+    
+    maxpow = find_multi_max_power(f, p, 6, 15, 2)
+    print("Summed max power is {}".format(maxpow))
     
     
     
