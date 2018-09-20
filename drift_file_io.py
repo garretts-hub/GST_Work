@@ -66,6 +66,22 @@ def merge_lines(file_loc, timestep, num_rows=None):
     timestamps = [i*timestep for i in range(1, num_samples)]
     return (np.asarray(ones_counts_per_stamp), np.asarray(zeros_counts_per_stamp), np.array(timestamps))  
 
+def merge_lines_with_padding(file_loc, timestep, num_rows=None):
+    '''
+    Requires a file with timestamped rows, and all rows having the same number of points.
+    Interpolates with zeros at the specified timestep between the rows.
+    '''
+    #make a list of the start times for each row (the endtime minus the length times timestep)
+    #at the start times, start appending 1s and 0s from the row
+    #check that you've still got extra time before the next row starts
+    #pad with 0s until you reach the starttime for the new row
+    ones_counts_per_stamp = []
+    zeros_counts_per_stamp = []
+    timestamps = []
+    
+    return (np.asarray(ones_counts_per_stamp), np.asarray(zeros_counts_per_stamp), np.array(timestamps)) 
+    
+
 def experiment_per_line(file_loc, timestep):
     '''
     Reads in a file with N-lines of C-bits each; 
