@@ -139,6 +139,14 @@ def RMS(powers_list):
     RMS = np.sqrt(sum_of_squares/N)
     return RMS
 
+def RMSE_comparison(data1, data2):
+    if len(data1) != len(data2):
+        raise ValueError("Both RMSE objects must be the same length!")
+    N = len(data1)
+    squares_list = [(data1[i] - data2[i])**2 for i in range(N)]
+    sum_of_squares = sum(squares_list)
+    return np.sqrt(sum_of_squares)/N
+
 def SNR(frequencies, powers, central_freq, freq_band):
     #frequencies and powers are lists.
     # central freq is the frequency you're interested in, and
@@ -318,13 +326,8 @@ def single_frequency_reconstruction(drifted, low_freq, high_freq, \
         
     return my_reconstruction, amplitude
 
-
-
-
-
-
 def multi_frequency_reconstruction(drifted, central_freq, tolerance_band,\
-                                    print_info=False, plot_original=False, plot_results=False): 
+                                    print_info=False, plot_original=False, plot_results=False, plot_range=None): 
         #requires a Drift object as the input
     '''
     Looks within the range of (tolerance band - central freq) to (central freq + tolerance band).
@@ -395,34 +398,31 @@ def multi_frequency_reconstruction(drifted, central_freq, tolerance_band,\
         plt.show()
     
     if plot_results:
-        plt.figure(figsize=(15,3))
         plt.title("Reconstructed Probability Plot using IDCT\n(Merging power at {:.4f} and {:.4f} Hz)".format(sorted_tuples[0][1], sorted_tuples[1][1]))
         plt.ylabel("1-State Probability")
         plt.xlabel("Time, seconds")
         plt.ylim(0,1)
         times = np.linspace(0, drifted.timestep*nSamples, nSamples)
         plt.grid()
-        plt.xlim(0, times[-1])
+        if plot_range != None:
+            plt.xlim(plot_range[0], plot_range[1])
+        else:
+            plt.xlim(0, times[-1])
         plt.plot(times, my_reconstruction, label='Reconstructed Probability: {:.3f}sin(2$\pi$ft) + {:.3f}'.format(max(my_reconstruction) - the_null_hypothesis[0],\
                  the_null_hypothesis[0]))
-        plt.plot(times, the_null_hypothesis, label='Null Hypothesis: {:.3f}'.format(the_null_hypothesis[0]))
+        #plt.plot(times, the_null_hypothesis, label='Null Hypothesis: {:.3f}'.format(the_null_hypothesis[0]))
         plt.legend(loc="lower right")
         plt.show()
         
     amplitude = max(my_reconstruction) - the_null_hypothesis[0]
+    if print_info:
+        print("Frequency: {:.3f} Hz\nAmplitude: {:.3f}".format(closest_freq, amplitude))
     
     return my_reconstruction, amplitude
         
     
 if __name__=='__main__':
-    f = np.arange(0, 20)
-    p = -(f - 10)**2 + 100
-    print(f)
-    print(p)
-    plt.plot(f, p)
-    
-    maxpow = find_multi_max_power(f, p, 6, 15, 2)
-    print("Summed max power is {}".format(maxpow))
+    print("")
     
     
     
