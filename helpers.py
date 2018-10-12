@@ -418,7 +418,7 @@ def multi_frequency_reconstruction(drifted, central_freq, tolerance_band,\
     if print_info:
         print("Frequency: {:.3f} Hz\nAmplitude: {:.3f}".format(closest_freq, amplitude))
     
-    return my_reconstruction, amplitude
+    return my_reconstruction, closest_freq, amplitude
         
     
 if __name__=='__main__':

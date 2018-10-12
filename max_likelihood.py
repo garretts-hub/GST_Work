@@ -158,7 +158,7 @@ def MLE(times, vals, nominal_params, f_range, a_range, p_range, form, tpp=None, 
     
     return times, reconst
 
-def two_dimensional_MLE(times, vals, f, a_range, p_range, form):
+def two_dimensional_optimization(times, vals, f, a_range, p_range, form, verbose=True):
     num_a = len(a_range)
     num_p = len(p_range)
     losses = np.ndarray(shape=(num_a, num_p))
@@ -168,8 +168,55 @@ def two_dimensional_MLE(times, vals, f, a_range, p_range, form):
             p = p_range[p_i]
             l = loss(times, vals, (f, a, p), form=form, tpp=None)
             losses[a_i, p_i] = l
+            
+    minimum = np.min(losses)
+    min_loc = np.where(losses == minimum)
+    min_loc = np.asarray(min_loc).T
+    a_index = min_loc[0, 0]
+    p_index = min_loc[0, 1]
+    optimized_tuple = (f, a_range[a_index], p_range[p_index])
     
-    return losses
+    if form == 'sine':
+        prob = p1_sine(times, (f, a_range[a_index], p_range[p_index]))
+    if form == 'saw':
+        prob = p1_saw(times, (f, a_range[a_index], p_range[p_index]))
+    if form == 'square':
+        prob = p1_square(times, (f, a_range[a_index], p_range[p_index]), tpp=None)
+    
+    return losses, prob, optimized_tuple
+                
+
+def three_dimensional_optimization(times, vals, f_range, a_range, p_range, form, verbose=True):
+    num_f = len(f_range)
+    num_a = len(a_range)
+    num_p = len(p_range)
+    losses = np.ndarray(shape=(num_f, num_a, num_p))
+    for f_i in range(num_f):
+        f = f_range[f_i]
+        print("Scanning amp & phase with F = {:.3f} Hz".format(f))
+        for a_i in range(num_a):
+            a = a_range[a_i]
+            for p_i in range(num_p):
+                p = p_range[p_i]
+                l = loss(times, vals, (f, a, p), form=form, tpp=None)
+                losses[f_i, a_i, p_i] = l
+            
+    minimum = np.min(losses)
+    min_loc = np.where(losses == minimum)
+    min_loc = np.asarray(min_loc).T
+    f_index = min_loc[0, 0]
+    a_index = min_loc[0, 1]
+    p_index = min_loc[0, 2]
+    optimized_tuple = (f_range[f_index], a_range[a_index], p_range[p_index])
+    
+    if form == 'sine':
+        prob = p1_sine(times, (f_range[f_index], a_range[a_index], p_range[p_index]))
+    if form == 'saw':
+        prob = p1_saw(times, (f_range[f_index], a_range[a_index], p_range[p_index]))
+    if form == 'square':
+        prob = p1_square(times, (f_range[f_index], a_range[a_index], p_range[p_index]), tpp=None)
+    
+    return losses, prob, optimized_tuple
                 
 
 import tensorflow as tf
@@ -280,7 +327,7 @@ def tensorflow_optimization(times, vals, init_f, init_a, init_p, tpp=None, nepoc
 if __name__=='__main__':
     
     #### Create data with the lines below
-    nominal = (1.21, 0.19, 0)
+    nominal = (1.21, 0.19, np.pi/2)
     times = np.arange(0, 30, 1/60)
     form = 'sine'
     tpp = None
@@ -301,30 +348,51 @@ if __name__=='__main__':
         
     plt.plot(times, vals, ls="None", marker='.', label="Data Points")
     plt.plot(times, prob, label="Probability")
-    plt.title("Input Data Set\nF = {} Hz, A = {}, P = {} Radians".format(nominal[0], nominal[1], nominal[2]))
+    plt.title("Input Data Set\nF = {} Hz, A = {}, P = {:.3f} Radians".format(nominal[0], nominal[1], nominal[2]))
     plt.xlim(0, 5)
     plt.xlabel("Time, s")
     plt.show()
         
-    if True:
+    if False:
+        resolution = 20
+        a_range=np.linspace(0.14, 0.22, resolution)
+        p_range=np.linspace(0, 2*np.pi, resolution)
+        freq = 1.21
+        losses, opt_prob, opt_params = two_dimensional_optimization(times, vals, freq, a_range, p_range, form=form)
+        
+        plt.figure(figsize=(6,6))
+        plt.pcolormesh(a_range,p_range,losses)
+        plt.xlabel("Amplitude")
+        plt.ylabel("Phase")
+        plt.colorbar()
+        plt.show()
+        
+        plt.plot(times, prob, ls='dashed', label="Input")
+        plt.plot(times, opt_prob, label="Optimized Fit")
+        plt.xlabel("Time, s")
+        plt.title("2-D MLE with Amplitude and Phase Variation\nInput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians\nOutput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians".format(nominal[0], nominal[1], nominal[2], opt_params[0], opt_params[1], opt_params[2]))
+        plt.xlim(0, 6)
+        plt.ylim(0, 1)
+        plt.grid()
+        plt.legend(loc='lower right')
+        plt.show()
+        
+    if False:
+        f_range=np.linspace(1.18, 1.22, 14)
         a_range=np.linspace(0.14, 0.22, 20)
         p_range=np.linspace(0, 2*np.pi, 20)
-        losses = two_dimensional_MLE(times, vals, 1.21, a_range, p_range, form=form)
-        a_losses = losses[3,:]
+        losses, opt_prob, opt_params = three_dimensional_optimization(times, vals, f_range, a_range, p_range, form=form)
         
-        from mpl_toolkits.mplot3d import Axes3D
-        from matplotlib import cm
-        from matplotlib.ticker import LinearLocator, FormatStrFormatter
-        
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
-        surf = ax.plot_surface(a_range, p_range, losses, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-        fig.colorbar(surf)
-        fig
+        plt.plot(times, prob, ls='dashed', label="Input")
+        plt.plot(times, opt_prob, label="Optimized Fit")
+        plt.xlabel("Time, s")
+        plt.title("3-D MLE\nInput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians\nOutput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians".format(nominal[0], nominal[1], nominal[2], opt_params[0], opt_params[1], opt_params[2]))
+        plt.xlim(0, 6)
+        plt.ylim(0, 1)
+        plt.grid()
+        plt.legend(loc='lower right')
         plt.show()
         
-        plt.imshow(losses, extent=(a_range.min(), a_range.max(), p_range.max(), p_range.min()), interpolation='nearest', cmap=cm.gist_rainbow)
-        plt.show()
     
     if False:    
         ##### Analyze data using the lines below     
@@ -338,6 +406,7 @@ if __name__=='__main__':
         plt.grid()
         plt.xlabel("Time, s")
         plt.ylabel("1-State Probability")
+        plt.legend(loc='lower right')
         plt.title("Combined Plot of Actual Input and Optimized Output")
         plt.xlim(0, 5)
         plt.ylim(0,1)
