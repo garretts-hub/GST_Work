@@ -57,6 +57,61 @@ def loss(time_data, y_data, nominal, form='sine', tpp=None):
         sum_term += np.log( (1-y_data[i])*p0[i] + y_data[i]*p1[i])
     return -1*sum_term
 
+def dLda(time_data, y_data, f, a, p, form):
+    sum_term = 0
+    for i in range(len(time_data)):
+        if form == 'sine':
+            numerator = (2*y_data[i] - 1)*np.sin(2*np.pi*f*time_data[i] + p)
+            denominator = (1-y_data[i])*(0.5 - a*np.sin(2*np.pi*f*time_data[i] + p)) + y_data[i]*(0.5 + a*np.sin(2*np.pi*f*time_data[i] + p))
+        sum_term += -numerator/denominator
+    return sum_term
+
+def dLdf(time_data, y_data, f, a, p, form):
+    sum_term = 0
+    
+    for i in range(len(time_data)):
+        if form == 'sine':
+            numerator = (2*y_data[i] - 1)*a*2*np.pi*time_data[i]*np.cos(2*np.pi*f*time_data[i] + p)
+            denominator = 0.5 + (2*y_data[i] - 1)*a*np.sin(2*np.pi*f*time_data[i] + p)
+        sum_term += -numerator/denominator
+    return sum_term
+
+def dLdp(time_data, y_data, f, a, p, form):
+    sum_term = 0
+    for i in range(len(time_data)):
+        if form == 'sine':
+            numerator = (2*y_data[i] - 1)*a*np.cos(2*np.pi*f*time_data[i] + p)
+            denominator = 0.5 + (2*y_data[i] - 1)*a*np.sin(2*np.pi*f*time_data[i] + p)
+        sum_term += -numerator/denominator
+    return sum_term
+
+def derivative_analysis(time_data, y_data, nominal, f_range, a_range, p_range, form):
+    f = nominal[0]
+    a = nominal[1]
+    p = nominal[2]
+    
+    f_deriv = dLdf(time_data, y_data, f_range, a, p, form)
+    plt.plot(f_range, f_deriv)
+    plt.grid()
+    plt.xlabel("Frequency")
+    plt.title("Derivative of Loss Function WRT Frequency")
+    plt.show()
+    
+    a_deriv = dLda(time_data, y_data, f, a_range, p, form)
+    plt.plot(a_range, a_deriv)
+    plt.grid()
+    plt.title("Derivative of Loss Function WRT Amplitude")
+    plt.xlabel("Amplitude")
+    plt.show()
+    
+    p_deriv = dLdp(time_data, y_data, f, a, p_range, form)
+    plt.plot(p_range, p_deriv)
+    plt.grid()
+    plt.xlabel("Phase")
+    plt.title("Derivative of Loss Function WRT Phase")
+    plt.show()
+
+
 def bit_flip(input_bit, flip_probability):
     out_bit = np.random.choice([input_bit, not(input_bit)], 1, p=[1-flip_probability, flip_probability])
     return out_bit[0]
@@ -156,7 +211,7 @@ def MLE(times, vals, nominal_params, f_range, a_range, p_range, form, tpp=None, 
     if form == 'square': 
         print("Time per pulse: {:.4f} seconds".format(tpp))
     
-    return times, reconst
+    return times, reconst, input_f, input_a, input_p
 
 def two_dimensional_optimization(times, vals, f, a_range, p_range, form, verbose=True):
     num_a = len(a_range)
@@ -396,7 +451,8 @@ if __name__=='__main__':
     
     if False:    
         ##### Analyze data using the lines below     
-        opt_times, opt_prob = MLE(times, vals, nominal, np.linspace(0.1, 2, 200), np.linspace(0, 0.3, 200), np.linspace(0, 1, 200),\
+        opt_times, opt_prob, f, a, p = MLE(times, vals, nominal, np.linspace(0.1, 2, 200), \
+                                  np.linspace(0, 0.3, 200), np.linspace(0, np.pi, 200),\
             form, tpp=None, input_f=None, input_a=None, input_p=None)
         
         #plot the actual data and optimized results below
@@ -411,11 +467,30 @@ if __name__=='__main__':
         plt.xlim(0, 5)
         plt.ylim(0,1)
         plt.show()
+        
+        a_range = np.linspace(0, 0.3, 200)
+        f_range = np.linspace(0.1, 2, 200) 
+        p_range = np.linspace(0, np.pi, 200)
+        derivative_analysis(times, vals, (f, a, p), f_range, a_range, p_range, form)
     
-    if False:
-        init_f = 1.3
-        init_a = 0.1
-        init_p = 0.1
-        tensorflow_optimization(times, vals, init_f, init_a, init_p, nepochs=4000, neval_period=10,\
-                                learning_rate=0.0001, optimizer="adam", mini_batch_size=512, verbose=True, do_plot=True)
-    
+    if True:
+        from scipy.optimize import minimize
+        def neg_ll(param_list):
+            f = param_list[0]
+            a = param_list[1]
+            p = param_list[2]
+            loss = 0
+            for i in range(len(times)):
+                t = times[i]
+                y = vals[i]
+                loss -= np.log(0.5 + (2*y - 1)*a*np.sin(2*np.pi*f*t + p))
+            return loss
+        print(neg_ll([1.2, 0.1, 1.5]))
+        
+        starting = [1.2, 0.1, 1.5]
+        res = minimize(neg_ll, starting, method = 'Nelder-Mead', options={'disp': True})
+        
+        print(res)
+        
+        
+            
