@@ -110,6 +110,50 @@ def derivative_analysis(time_data, y_data, nominal, f_range, a_range, p_range, f
     plt.xlabel("Phase")
     plt.title("Derivative of Loss Function WRT Phase")
     plt.show()
+    
+def scipy_optimization(times, vals, guess_params, form, actual_params=None, method='Nelder-Mead'):
+    from scipy.optimize import minimize
+    def neg_ll(param_list):
+        f = param_list[0]
+        a = param_list[1]
+        p = param_list[2]
+        if len(guess_params) == 4:
+            tpp = param_list[3]
+        loss = 0
+        for i in range(len(times)):
+            t = times[i]
+            y = vals[i]
+            if form == 'sine':
+                loss -= np.log(0.5 + (2*y - 1)*a*np.sin(2*np.pi*f*t + p))
+        return loss
+    
+    res = minimize(neg_ll, guess_params, method=method)
+    
+    opt_f = res['x'][0]
+    opt_a = res['x'][1]
+    opt_p = res['x'][2]
+    if len(guess_params) == 4:
+        opt_tpp = res['x'][3]
+    
+    if form == 'sine':
+        opt_prob = p1_sine(times, (opt_f, opt_a, opt_p))
+        if actual_params != None:
+            actual_prob = p1_sine(times, actual_params)
+            plt.plot(times, actual_prob, ls='dashed', label="Input function")
+    plt.plot(times, opt_prob, label="Scipy Optimization")
+    plt.xlabel("Time, s")
+    plt.xlim(0, 5)
+    plt.ylim(0,1)
+    plt.grid()
+    plt.legend(loc = 'lower right')
+    if actual_params != None:
+        plt.title("Scipy Optimization Method\nInput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians\nOutput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians".format( \
+              actual_params[0], actual_params[1], actual_params[2], opt_f, opt_a, opt_p))
+    else:
+        plt.title("Scipy Optimization Method\nOutput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians".format(opt_f, opt_a, opt_p))
+    plt.show()
+    
+    return res['x']
 
 
 def bit_flip(input_bit, flip_probability):
@@ -401,12 +445,12 @@ if __name__=='__main__':
         flip_prob = 0.05
         vals = [bit_flip(val, flip_prob) for val in vals]
         
-    plt.plot(times, vals, ls="None", marker='.', label="Data Points")
+    '''plt.plot(times, vals, ls="None", marker='.', label="Data Points")
     plt.plot(times, prob, label="Probability")
     plt.title("Input Data Set\nF = {} Hz, A = {}, P = {:.3f} Radians".format(nominal[0], nominal[1], nominal[2]))
     plt.xlim(0, 5)
     plt.xlabel("Time, s")
-    plt.show()
+    plt.show()'''
         
     if False:
         resolution = 20
@@ -474,23 +518,9 @@ if __name__=='__main__':
         derivative_analysis(times, vals, (f, a, p), f_range, a_range, p_range, form)
     
     if True:
-        from scipy.optimize import minimize
-        def neg_ll(param_list):
-            f = param_list[0]
-            a = param_list[1]
-            p = param_list[2]
-            loss = 0
-            for i in range(len(times)):
-                t = times[i]
-                y = vals[i]
-                loss -= np.log(0.5 + (2*y - 1)*a*np.sin(2*np.pi*f*t + p))
-            return loss
-        print(neg_ll([1.2, 0.1, 1.5]))
+        guess_params = (1.2,0.2,1)#(1.18, 0.23, np.pi/1.7)
+        scipy_optimization(times, vals, guess_params, form, actual_params=nominal)
         
-        starting = [1.2, 0.1, 1.5]
-        res = minimize(neg_ll, starting, method = 'Nelder-Mead', options={'disp': True})
-        
-        print(res)
         
         
             
