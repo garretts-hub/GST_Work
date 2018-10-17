@@ -111,7 +111,7 @@ def derivative_analysis(time_data, y_data, nominal, f_range, a_range, p_range, f
     plt.title("Derivative of Loss Function WRT Phase")
     plt.show()
     
-def scipy_optimization(times, vals, guess_params, form, actual_params=None, method='Nelder-Mead'):
+def scipy_optimization(times, vals, guess_params, form, actual_params=None, plot=False, method='Nelder-Mead'):
     from scipy.optimize import minimize
     def neg_ll(param_list):
         f = param_list[0]
@@ -124,7 +124,10 @@ def scipy_optimization(times, vals, guess_params, form, actual_params=None, meth
             t = times[i]
             y = vals[i]
             if form == 'sine':
+                p0 = p0_sine(t, (f,a,p))
+                p1 = p1_sine(t, (f,a,p))
                 loss -= np.log(0.5 + (2*y - 1)*a*np.sin(2*np.pi*f*t + p))
+                #loss -= np.log( (1-y)*p0 + y*p1)
         return loss
     
     res = minimize(neg_ll, guess_params, method=method)
@@ -139,19 +142,22 @@ def scipy_optimization(times, vals, guess_params, form, actual_params=None, meth
         opt_prob = p1_sine(times, (opt_f, opt_a, opt_p))
         if actual_params != None:
             actual_prob = p1_sine(times, actual_params)
-            plt.plot(times, actual_prob, ls='dashed', label="Input function")
-    plt.plot(times, opt_prob, label="Scipy Optimization")
-    plt.xlabel("Time, s")
-    plt.xlim(0, 5)
-    plt.ylim(0,1)
-    plt.grid()
-    plt.legend(loc = 'lower right')
-    if actual_params != None:
-        plt.title("Scipy Optimization Method\nInput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians\nOutput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians".format( \
+            if plot:
+                plt.plot(times, actual_prob, ls='dashed', label="Input function")
+    
+    if plot:
+        plt.plot(times, opt_prob, label="Scipy Optimization")
+        plt.xlabel("Time, s")
+        plt.xlim(0, 5)
+        plt.ylim(0,1)
+        plt.grid()
+        plt.legend(loc = 'lower right')
+        if actual_params != None:
+            plt.title("Scipy Optimization Method\nInput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians\nOutput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians".format( \
               actual_params[0], actual_params[1], actual_params[2], opt_f, opt_a, opt_p))
-    else:
-        plt.title("Scipy Optimization Method\nOutput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians".format(opt_f, opt_a, opt_p))
-    plt.show()
+        else:
+            plt.title("Scipy Optimization Method\nOutput: F = {:.3f} Hz, A = {:.3f}, P = {:.3f} Radians".format(opt_f, opt_a, opt_p))
+        plt.show()
     
     return res['x']
 
@@ -285,14 +291,15 @@ def two_dimensional_optimization(times, vals, f, a_range, p_range, form, verbose
     return losses, prob, optimized_tuple
                 
 
-def three_dimensional_optimization(times, vals, f_range, a_range, p_range, form, verbose=True):
+def three_dimensional_optimization(times, vals, f_range, a_range, p_range, form, verbose=False):
     num_f = len(f_range)
     num_a = len(a_range)
     num_p = len(p_range)
     losses = np.ndarray(shape=(num_f, num_a, num_p))
     for f_i in range(num_f):
         f = f_range[f_i]
-        print("Scanning amp & phase with F = {:.3f} Hz".format(f))
+        if verbose:
+            print("Scanning amp & phase with F = {:.3f} Hz".format(f))
         for a_i in range(num_a):
             a = a_range[a_i]
             for p_i in range(num_p):
@@ -519,7 +526,9 @@ if __name__=='__main__':
     
     if True:
         guess_params = (1.2,0.2,1)#(1.18, 0.23, np.pi/1.7)
-        scipy_optimization(times, vals, guess_params, form, actual_params=nominal)
+        scipy_optimization1(times, vals, guess_params, form, plot=True,actual_params=nominal)
+        
+        scipy_optimization2(times, vals, guess_params, form, plot=True,actual_params=nominal)
         
         
         
