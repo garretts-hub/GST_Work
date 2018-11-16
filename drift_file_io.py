@@ -66,20 +66,39 @@ def merge_lines(file_loc, timestep, num_rows=None):
     timestamps = [i*timestep for i in range(1, num_samples)]
     return (np.asarray(ones_counts_per_stamp), np.asarray(zeros_counts_per_stamp), np.array(timestamps))  
 
-def merge_lines_with_padding(file_loc, timestep, num_rows=None):
+def sixteen_bit_lines_backwards(file_loc, timestep, num_experiments):
     '''
-    Requires a file with timestamped rows, and all rows having the same number of points.
-    Interpolates with zeros at the specified timestep between the rows.
+    Assumes 16 bits per line. Merges all lines into one bit string of 
+    equidistant points. If more than one experiment is merged into the line, the long bitstring
+    will be split up into num_experiments of equal length.
     '''
-    #make a list of the start times for each row (the endtime minus the length times timestep)
-    #at the start times, start appending 1s and 0s from the row
-    #check that you've still got extra time before the next row starts
-    #pad with 0s until you reach the starttime for the new row
-    ones_counts_per_stamp = []
-    zeros_counts_per_stamp = []
-    timestamps = []
+    datasets = []
+    bitstring = []
+    with open(file_loc, 'r') as file:
+        for row in file:
+            row = [int(bit) for bit in row[0:16]]
+            #print("Forward row",row)
+            row = row[::-1]#due to a LabView error, the bits are read in backwards
+            #print("Reversed row", row_list)
+            #print("Row list is",row_list)
+            bitstring.extend(row)
     
-    return (np.asarray(ones_counts_per_stamp), np.asarray(zeros_counts_per_stamp), np.array(timestamps)) 
+    total_points = len(bitstring)
+    points_per_experiment = total_points/num_experiments
+    
+    #print("total points is",total_points)
+    #print("points per experiment is ",points_per_experiment)
+    if points_per_experiment != round(points_per_experiment, 0):
+        raise ValueError("Points per experiment is a decimal: Either the input number of experiments or the data file is incorrect.")
+    else:
+        points_per_experiment = int(points_per_experiment)
+    for index in range(num_experiments):
+        data = np.asarray(bitstring[index*points_per_experiment:(index + 1)*points_per_experiment])
+        timestamp_array = np.asarray([i*timestep for i in range(1, points_per_experiment + 1)])
+        set_tuple = (data, 1 - data, timestamp_array)
+        datasets.append(set_tuple)
+    return datasets #returns a num_experiment-length list with tuples containing (ones_count_array, zeros_count_array, timestamp_array)
+    
     
 
 def experiment_per_line(file_loc, timestep):
@@ -145,3 +164,7 @@ if __name__=='__main__':
     #for i in range(len(zeros)):
         #print("Time {:.3f}, zero: {}, one: {}".format(times[i], zeros[i], ones[i]))
     #print(calculate_average_timestep(times))
+    file_loc = 'N:/Programs/Ions Share/Gate-Set Tomography/DriftAnalysis/2018_11_16_64000/2018_11_16_1134_47_DRIFT.txt'
+    data_list = sixteen_bit_lines_backwards(file_loc, 1/60, 3)
+    print(len(data_list[0][0]))
+    print(len(data_list))

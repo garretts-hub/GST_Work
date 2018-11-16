@@ -525,11 +525,102 @@ if __name__=='__main__':
         derivative_analysis(times, vals, (f, a, p), f_range, a_range, p_range, form)
     
     if True:
-        guess_params = (1.2,0.2,1)#(1.18, 0.23, np.pi/1.7)
-        scipy_optimization1(times, vals, guess_params, form, plot=True,actual_params=nominal)
+        '''Generate simulated data with nominal parameters here'''        
+        times = np.linspace(0, 30, 200)
+        nominal = (1, 0.2, 0)
+        data = np.random.binomial(1, p1_sine(times,nominal))
         
-        scipy_optimization2(times, vals, guess_params, form, plot=True,actual_params=nominal)
+        '''Use scipy optimization to find the right probability shape'''
+        guess_params = (1,0.2,0)#(1.18, 0.23, np.pi/1.7)
+        scipy_optimization(times, data, guess_params, form='sine', plot=True,actual_params=nominal)
+        
+        
+        '''The following is the 'conventional' MLE method that I did in scipy optimization.
+        Try using different frequencies in the 'guess' parameter, x, and calculate the empirical loss function with the data using
+        that guess frequency'''
+        def old_L(times, data, guess):
+            p1 = p1_sine(times, guess)
+            summed = 0
+            for i in range(len(data)):
+                y = data[i]
+                p = p1[i]
+                log_arg = (y)*p + (1-y)*(1-p)
+                #loss = np.log(log_arg)
+                summed += log_arg
+            return -np.log(summed)
+        
+        guesses = [(i, 0.19, 0) for i in np.linspace(0.8, 1.2, 300)]
+        g_freqs = [guesses[i][0] for i in range(len(guesses))]
+        empirical_vals = []
+        for g in guesses:
+            val = old_L(times, data, g)
+            empirical_vals.append(val)
+        plt.figure(figsize=(10, 4))
+        plt.plot(g_freqs, empirical_vals, marker='.', markersize = 7, label="Discrete Data Loss Function")
+        plt.title("Empirical Loss Function\nGuess the frequency and apply that model to the data-driven Loss function")
+        plt.xlabel("Guess freq, x")
+        plt.legend(loc='lower right')
+        plt.grid()
+        plt.show()
+        
+        '''Now use the analytical version of the loss function.
+        
+        (x,y,z) should be the parameters on the x-axis, just like in the empirical plot. However, we'll try comparing the
+        analytical and empircal loss functions (as functions of (x,y,z)) for different values of (a,f,p) in the analytical function.
+        Then we just optimize via curve_fit to see which set of (a,f,p) makes analytical(x,y,z) closest to empirical(x,y,z)
+        '''
+        
+        from numpy import sin, pi
+        T = times[-1]
+        def loss_integrated(x, y, z, a, f, p):
+            #the solved integral form of the loss function above
+            term1 = T/2
+            term2 = x*a/(2*pi*(y-f + 1e-8))*( sin(2*pi*(y-f)*T +(z-p)) - sin(z-p) )
+            term3 = -x*a/(2*pi*(y+f + 1e-8))*( sin(2*pi*(y+f)*T +(z+p)) - sin(z+p) )
+            #print(term2 + term3)
+            log_arg = term1 + term2 + term3
+            return -np.log(log_arg)
+        ### For some reason, the scale on the integral and empirical forms are not the same. I'll work on this.
+        
+        test_analytical_vals = [loss_integrated(0.2, g_freq, 0, 0.2, 1, 0) for g_freq in g_freqs]
+        plt.figure(figsize=(10,4))
+        plt.grid()
+        plt.plot(g_freqs, test_analytical_vals, label='Analytical Model')
+        plt.xlabel('guess freq')
+        plt.title("Analytical Integrated Form of Loss Function\nDoes not use any data")
+        plt.show()
+                        
+        def loss_integrated_f_scan(guess_freq, f_model):
+            #scan over the integrated loss function as a function of guess freq, and fit it to the analytical function using f as the fitting param
+            #guess_freq is the x-axis variable, f_model is the parameter for optimization
+            x = nominal[1]
+            z = nominal[2]
+            a = x
+            p = z
+            return loss_integrated(x, guess_freq, z, a, f_model, p)
+        
+        from scipy.optimize import curve_fit
+        
+        popt, pcov = curve_fit(loss_integrated_f_scan, g_freqs, empirical_vals, p0=[1])
+        opt_freq = popt[0]
+        sigma_opt_freq = np.diag(pcov)[0]
+        '''In theory, this case should take the guess_freq array and empirical loss function array shown in the top plot as the data to
+        which to fit, then optimize the choice of parameter 'f' in loss_integrated(guess_freq) so that the analytical form is as close to 
+        the empirically-based loss points as possible.
+        '''
+        
+        '''Now let's plot the optimimal analytical loss function on top of the empircal loss function points.'''
+        optimal_analytical_form = [loss_integrated(0.2, g_freq, 0, 0.2, opt_freq, 0) for g_freq in g_freqs]
+        plt.figure(figsize=(10,4))
+        plt.xlabel("guess freq, x")
+        plt.plot(g_freqs, empirical_vals, marker='.', markersize=7, ls='None', label='Analytical Points')
+        plt.plot(g_freqs, optimal_analytical_form, label='Optimized Analytical Form')
+        plt.grid()
+        plt.legend(loc='lower right')
+        plt.title("Comparing Empirical and Analytical Methods\n*Using log outside of the summation/integral*")
+        plt.show()
         
         
         
+            
             
